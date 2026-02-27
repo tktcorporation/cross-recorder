@@ -9,18 +9,25 @@
     "dev:hmr": "concurrently \"bun run hmr\" \"bun run start\"",
     "hmr": "vite --port 5173",
     "build": "vite build && electrobun build",
+    "build:vite": "vite build",
+    "typecheck": "bash -c 'tsc --noEmit --skipLibCheck 2>&1 | grep -v node_modules | grep error && exit 1 || exit 0'",
     "lint": "oxlint",
-    "format": "oxlint --fix"
+    "format": "oxlint --fix",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish"
   },
   "dependencies": {
-    "electrobun": "^1.14.4",
     "effect": "^3.12.0",
+    "electrobun": "^1.14.4",
     "nanoid": "^5.1.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^0.5.2",
+    "@changesets/cli": "^2.29.8",
     "@types/bun": "latest",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

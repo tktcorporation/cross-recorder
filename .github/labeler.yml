@@ -5,3 +5,19 @@ document:
 ci:
   - changed-files:
       - any-glob-to-any-file: ".github/workflows/**/*"
+
+audio:
+  - changed-files:
+      - any-glob-to-any-file: "src/mainview/audio/**/*"
+
+ui:
+  - changed-files:
+      - any-glob-to-any-file: "src/mainview/components/**/*"
+
+main-process:
+  - changed-files:
+      - any-glob-to-any-file: "src/bun/**/*"
+
+release:
+  - changed-files:
+      - any-glob-to-any-file: ".changeset/**/*"

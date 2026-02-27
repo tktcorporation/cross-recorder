@@ -39,3 +39,5 @@ recordings/
 # Temporary files
 *.tmp
 *.bak
+
+build/

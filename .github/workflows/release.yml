@@ -109,17 +109,17 @@ jobs:
 
       - name: List build output
         shell: bash
-        run: find build -maxdepth 3 -type d | head -30
+        run: find build -maxdepth 4 -type d | head -50
 
       - name: Package artifacts (macOS)
         if: matrix.platform == 'macos'
         shell: bash
         run: |
-          # Electrobun outputs "Cross Recorder.app" (with space) on macOS
-          APP_BUNDLE=$(find build -maxdepth 2 -name "*.app" -type d | head -1)
+          # Electrobun outputs: build/dev-macos-arm64/Cross Recorder-dev.app
+          APP_BUNDLE=$(find build -name "*.app" -type d | head -1)
           if [ -z "$APP_BUNDLE" ]; then
             echo "No .app bundle found in build/"
-            find build -maxdepth 3 -type d
+            find build -maxdepth 4 -type d
             exit 1
           fi
           echo "Found app bundle: $APP_BUNDLE"
@@ -130,11 +130,11 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          # Electrobun outputs "CrossRecorder" (no space) on Windows
-          $buildDir = Get-ChildItem -Path build -Directory | Where-Object { $_.Name -match "Cross\s?Recorder" } | Select-Object -First 1
+          # Electrobun outputs: build/dev-win-x64/CrossRecorder-dev/
+          $buildDir = Get-ChildItem -Path build -Recurse -Directory | Where-Object { $_.Name -match "^Cross\s?Recorder" } | Select-Object -First 1
           if (-not $buildDir) {
             Write-Error "Build directory not found"
-            Get-ChildItem -Path build -Directory
+            Get-ChildItem -Path build -Recurse -Directory | Select-Object -First 20
             exit 1
           }
           Write-Output "Found build dir: $($buildDir.FullName)"

@@ -1,0 +1,78 @@
+{
+  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind,consistency=cached",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+  // Volume name must start with [a-zA-Z0-9] to comply with Docker naming rules
+  // Using 'devcontainer-' prefix so ${localWorkspaceFolderBasename} ('.github') doesn't start the name
+  "mounts": [
+    "source=devcontainer-${localWorkspaceFolderBasename}-pnpm-store,target=${containerWorkspaceFolder}/.pnpm-store,type=volume"
+  ],
+
+  "features": {
+    // "ghcr.io/devcontainers/features/docker-in-docker:2": {
+    //   "version": "latest",
+    //   "enableNonRootDocker": "true",
+    //   "moby": "true"
+    // },
+    "ghcr.io/devcontainers/features/aws-cli:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers-extra/features/mise:1": {}
+  },
+  "runArgs": ["--env-file", ".devcontainer/.env.devcontainer"],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "GitHub.copilot",
+        "mhutchie.git-graph",
+        "steoates.autoimport",
+        "editorconfig.editorconfig",
+        "WakaTime.vscode-wakatime",
+        "nemesv.copy-file-name"
+      ],
+      "settings": {
+        "files.watcherExclude": {
+          "**/.git/objects/**": true,
+          "**/.git/subtree-cache/**": true,
+          "**/.git/modules/**": true,
+          "**/node_modules/**": true,
+          "**/.pnpm/**": true,
+          "**/.pnpm-store/**": true,
+          "**/.turbo/**": true
+        },
+        "search.exclude": {
+          "**/node_modules": true,
+          "**/.pnpm": true,
+          "**/.pnpm-store": true,
+          "**/.git": true,
+          "**/.turbo": true
+        }
+      }
+    }
+  },
+  "onCreateCommand": {
+    "install-packages": [
+      "bash",
+      "-c",
+      "set -e; sudo apt-get update && sudo apt-get install -y build-essential fzf ripgrep bc gpg ca-certificates curl tmux"
+    ]
+  },
+  "updateContentCommand": {
+    "add-node-gpg-key-mise": [
+      "bash",
+      "-c",
+      "set -e; curl -fsSL https://raw.githubusercontent.com/nodejs/release-keys/b362bd15f2ac7ce350d7563fc03e0c625e455e5f/cli.sh | bash -s import"
+    ],
+    "setup-mise-bash": ["bash", "-c", "echo 'eval \"$(mise activate bash)\"' >> ~/.bashrc"],
+    "trust-mise": ["mise", "trust"]
+  },
+  "postCreateCommand": {
+    "mise-install": "mise install",
+    "fix-pnpm-store-permissions": ["bash", "-lc", "sudo chown -R $(whoami) .pnpm-store"]
+  },
+  "postStartCommand": {
+    "setup-chrome-devtools-mcp": ["bash", "-lc", ".devcontainer/setup-chrome-devtools-mcp.sh"],
+    "mise-upgrade": ["mise", "upgrade"]
+  }
+}

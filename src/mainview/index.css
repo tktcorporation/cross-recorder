@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased;
+    -webkit-app-region: drag;
+  }
+
+  button,
+  select,
+  input {
+    -webkit-app-region: no-drag;
+  }
+}

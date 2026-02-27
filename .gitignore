@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+*.app/
+*.dmg
+*.exe
+*.msi
+
+# Electrobun
+.electrobun/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Editor
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug logs
+*.log
+npm-debug.log*
+
+# Recordings (user data)
+recordings/
+
+# Temporary files
+*.tmp
+*.bak

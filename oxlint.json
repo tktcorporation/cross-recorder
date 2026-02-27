@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicolo-ribaudo/tc39-proposal-json-schema/refs/heads/main/oxlint/schema.json",
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-console": "off",
+    "eqeqeq": "error",
+    "no-var": "error",
+    "prefer-const": "warn"
+  },
+  "ignorePatterns": ["dist", "node_modules", "*.worklet.js"]
+}

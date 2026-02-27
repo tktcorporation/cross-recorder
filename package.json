@@ -2,6 +2,7 @@
   "name": "cross-recorder",
   "version": "0.2.0",
   "description": "Cross-platform desktop audio recorder built with Electrobun",
+  "private": true,
   "type": "module",
   "packageManager": "pnpm@10.30.3",
   "scripts": {

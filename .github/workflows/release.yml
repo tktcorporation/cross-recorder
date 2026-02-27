@@ -107,27 +107,37 @@ jobs:
       - name: Build application
         run: pnpm build
 
+      - name: List build output
+        shell: bash
+        run: find build -maxdepth 3 -type d | head -30
+
       - name: Package artifacts (macOS)
         if: matrix.platform == 'macos'
         shell: bash
         run: |
-          BUILD_DIR=$(find build -type d -name "CrossRecorder*" -maxdepth 2 | head -1)
-          if [ -z "$BUILD_DIR" ]; then
-            echo "Build directory not found"
+          # Electrobun outputs "Cross Recorder.app" (with space) on macOS
+          APP_BUNDLE=$(find build -maxdepth 2 -name "*.app" -type d | head -1)
+          if [ -z "$APP_BUNDLE" ]; then
+            echo "No .app bundle found in build/"
+            find build -maxdepth 3 -type d
             exit 1
           fi
-          cd "$(dirname "$BUILD_DIR")"
-          tar -czf "$GITHUB_WORKSPACE/CrossRecorder-${{ needs.changesets.outputs.version }}-macos-arm64.tar.gz" "$(basename "$BUILD_DIR")"
+          echo "Found app bundle: $APP_BUNDLE"
+          cd "$(dirname "$APP_BUNDLE")"
+          tar -czf "$GITHUB_WORKSPACE/CrossRecorder-${{ needs.changesets.outputs.version }}-macos-arm64.tar.gz" "$(basename "$APP_BUNDLE")"
 
       - name: Package artifacts (Windows)
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          $buildDir = Get-ChildItem -Path build -Recurse -Directory -Filter "CrossRecorder*" | Select-Object -First 1
+          # Electrobun outputs "CrossRecorder" (no space) on Windows
+          $buildDir = Get-ChildItem -Path build -Directory | Where-Object { $_.Name -match "Cross\s?Recorder" } | Select-Object -First 1
           if (-not $buildDir) {
             Write-Error "Build directory not found"
+            Get-ChildItem -Path build -Directory
             exit 1
           }
+          Write-Output "Found build dir: $($buildDir.FullName)"
           Compress-Archive -Path $buildDir.FullName -DestinationPath "CrossRecorder-${{ needs.changesets.outputs.version }}-windows-x64.zip"
 
       - name: Upload artifacts

@@ -18,8 +18,8 @@ export function useRpc() {
         rpc.request.deleteRecording(params),
       openFileLocation: (params: Parameters<typeof rpc.request.openFileLocation>[0]) =>
         rpc.request.openFileLocation(params),
-      getPlaybackUrl: (params: Parameters<typeof rpc.request.getPlaybackUrl>[0]) =>
-        rpc.request.getPlaybackUrl(params),
+      getPlaybackData: (params: Parameters<typeof rpc.request.getPlaybackData>[0]) =>
+        rpc.request.getPlaybackData(params),
     }),
     [],
   );

@@ -4,24 +4,34 @@ import type {
   RecordingConfig,
   RecordingMetadata,
   RecordingState,
+  TrackKind,
 } from "./types.js";
 
 export type CrossRecorderRPC = {
   bun: RPCSchema<{
     requests: {
       startRecordingSession: {
-        params: { sessionId: string; config: RecordingConfig };
+        params: {
+          sessionId: string;
+          config: RecordingConfig;
+          tracks: Array<{ trackKind: TrackKind; channels: number }>;
+        };
         response: { success: boolean; filePath: string };
       };
       saveRecordingChunk: {
-        params: { sessionId: string; chunkIndex: number; pcmData: string };
+        params: {
+          sessionId: string;
+          trackKind: TrackKind;
+          chunkIndex: number;
+          pcmData: string;
+        };
         response: { success: boolean; bytesWritten: number };
       };
       finalizeRecording: {
         params: {
           sessionId: string;
           config: RecordingConfig;
-          totalChunks: number;
+          totalChunks: Record<TrackKind, number>;
         };
         response: RecordingMetadata;
       };
@@ -41,9 +51,9 @@ export type CrossRecorderRPC = {
         params: { filePath: string };
         response: void;
       };
-      getPlaybackUrl: {
+      getPlaybackData: {
         params: { filePath: string };
-        response: { url: string };
+        response: { data: string; mimeType: string };
       };
     };
     messages: {

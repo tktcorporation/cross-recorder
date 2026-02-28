@@ -1,7 +1,15 @@
+import type { TrackKind } from "@shared/types.js";
+
+type TrackState = {
+  source: MediaStreamAudioSourceNode;
+  analyser: AnalyserNode;
+  worklet: AudioWorkletNode;
+  silentGain: GainNode;
+};
+
 export class RecordingPipeline {
   private audioContext: AudioContext | null = null;
-  private workletNode: AudioWorkletNode | null = null;
-  private onPcmData: ((data: ArrayBuffer) => void) | null = null;
+  private tracks = new Map<TrackKind, TrackState>();
 
   async initialize(sampleRate: number): Promise<void> {
     this.audioContext = new AudioContext({ sampleRate });
@@ -12,56 +20,65 @@ export class RecordingPipeline {
     await this.audioContext.audioWorklet.addModule(workletUrl);
   }
 
-  start(options: {
-    micStream?: MediaStream;
-    systemStream?: MediaStream;
-    onPcmData: (data: ArrayBuffer) => void;
-  }): void {
+  addTrack(
+    trackKind: TrackKind,
+    stream: MediaStream,
+    channels: number,
+    onPcmData: (data: ArrayBuffer) => void,
+  ): void {
     if (!this.audioContext) {
       throw new Error("RecordingPipeline not initialized");
     }
 
-    this.onPcmData = options.onPcmData;
+    const source = this.audioContext.createMediaStreamSource(stream);
 
-    const merger = this.audioContext.createChannelMerger(2);
+    const analyser = this.audioContext.createAnalyser();
+    analyser.fftSize = 2048;
 
-    if (options.micStream) {
-      const micSource = this.audioContext.createMediaStreamSource(
-        options.micStream,
-      );
-      micSource.connect(merger, 0, 0);
-    }
-
-    if (options.systemStream) {
-      const systemSource = this.audioContext.createMediaStreamSource(
-        options.systemStream,
-      );
-      systemSource.connect(merger, 0, 1);
-    }
-
-    this.workletNode = new AudioWorkletNode(
+    const worklet = new AudioWorkletNode(
       this.audioContext,
       "pcm-recorder",
+      {
+        channelCount: channels,
+        channelCountMode: "explicit",
+        processorOptions: { channelCount: channels },
+      },
     );
 
-    this.workletNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
-      this.onPcmData?.(event.data);
+    worklet.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
+      onPcmData(event.data);
     };
 
-    merger.connect(this.workletNode);
-    this.workletNode.connect(this.audioContext.destination);
+    // Silent gain to keep the audio graph active without audible output
+    const silentGain = this.audioContext.createGain();
+    silentGain.gain.value = 0;
+
+    // Chain: source → analyser → worklet → silentGain → destination
+    source.connect(analyser);
+    analyser.connect(worklet);
+    worklet.connect(silentGain);
+    silentGain.connect(this.audioContext.destination);
+
+    this.tracks.set(trackKind, { source, analyser, worklet, silentGain });
+  }
+
+  getAnalyserForTrack(trackKind: TrackKind): AnalyserNode | null {
+    return this.tracks.get(trackKind)?.analyser ?? null;
   }
 
   stop(): void {
-    if (this.workletNode) {
-      this.workletNode.disconnect();
-      this.workletNode = null;
+    for (const [, track] of this.tracks) {
+      track.worklet.disconnect();
+      track.analyser.disconnect();
+      track.source.disconnect();
+      track.silentGain.disconnect();
     }
+    this.tracks.clear();
+
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;
     }
-    this.onPcmData = null;
   }
 
   getSampleRate(): number {

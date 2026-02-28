@@ -1,7 +1,8 @@
 import { BrowserView } from "electrobun/bun";
 import { Effect } from "effect";
+import * as fs from "node:fs";
 import type { CrossRecorderRPC } from "../shared/rpc-schema.js";
-import type { RecordingConfig } from "../shared/types.js";
+import type { RecordingConfig, TrackKind } from "../shared/types.js";
 import * as FileService from "./services/FileService.js";
 import * as RecordingManager from "./services/RecordingManager.js";
 
@@ -11,26 +12,28 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
       startRecordingSession: async (params: {
         sessionId: string;
         config: RecordingConfig;
+        tracks: Array<{ trackKind: TrackKind; channels: number }>;
       }) => {
         return Effect.runPromise(
-          FileService.startSession(params.sessionId, params.config),
+          FileService.startSession(params.sessionId, params.config, params.tracks),
         );
       },
 
       saveRecordingChunk: async (params: {
         sessionId: string;
+        trackKind: TrackKind;
         chunkIndex: number;
         pcmData: string;
       }) => {
         return Effect.runPromise(
-          FileService.writeChunk(params.sessionId, params.pcmData),
+          FileService.writeChunk(params.sessionId, params.trackKind, params.pcmData),
         );
       },
 
       finalizeRecording: async (params: {
         sessionId: string;
         config: RecordingConfig;
-        totalChunks: number;
+        totalChunks: Record<TrackKind, number>;
       }) => {
         const metadata = await Effect.runPromise(
           FileService.finalizeRecording(
@@ -72,8 +75,10 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
         }
       },
 
-      getPlaybackUrl: async (params: { filePath: string }) => {
-        return { url: `file://${params.filePath}` };
+      getPlaybackData: async (params: { filePath: string }) => {
+        const fileBuffer = fs.readFileSync(params.filePath);
+        const base64 = fileBuffer.toString("base64");
+        return { data: base64, mimeType: "audio/wav" };
       },
     },
 

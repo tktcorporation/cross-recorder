@@ -6,7 +6,7 @@ export class SystemAudioCapture {
   async start(): Promise<MediaStream> {
     this.stream = await navigator.mediaDevices.getDisplayMedia({
       audio: {
-        channelCount: 1,
+        channelCount: 2,
         sampleRate: DEFAULT_SAMPLE_RATE,
       } as MediaTrackConstraints,
       video: false,

@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
-import type { RecordingMetadata } from "@shared/types.js";
-import { DEFAULT_SAMPLE_RATE, DEFAULT_BIT_DEPTH, DEFAULT_CHANNELS } from "@shared/constants.js";
+import type { RecordingMetadata, TrackKind } from "@shared/types.js";
+import { DEFAULT_SAMPLE_RATE, DEFAULT_BIT_DEPTH } from "@shared/constants.js";
 import { MicrophoneCapture } from "./MicrophoneCapture.js";
 import { SystemAudioCapture } from "./SystemAudioCapture.js";
 import { RecordingPipeline } from "./RecordingPipeline.js";
@@ -11,16 +11,18 @@ type RpcRequest = {
   startRecordingSession: (params: {
     sessionId: string;
     config: RecordingConfig;
+    tracks: Array<{ trackKind: TrackKind; channels: number }>;
   }) => Promise<{ success: boolean; filePath: string }>;
   saveRecordingChunk: (params: {
     sessionId: string;
+    trackKind: TrackKind;
     chunkIndex: number;
     pcmData: string;
   }) => Promise<{ success: boolean; bytesWritten: number }>;
   finalizeRecording: (params: {
     sessionId: string;
     config: RecordingConfig;
-    totalChunks: number;
+    totalChunks: Record<TrackKind, number>;
   }) => Promise<RecordingMetadata>;
   cancelRecording: (params: {
     sessionId: string;
@@ -41,10 +43,11 @@ export class AudioCaptureManager {
   private micCapture: MicrophoneCapture;
   private systemCapture: SystemAudioCapture;
   private sessionId: string | null = null;
-  private chunkIndex = 0;
+  private chunkIndex: Record<TrackKind, number> = { mic: 0, system: 0 };
   private startTime = 0;
   private totalBytes = 0;
   private currentConfig: RecordingConfig | null = null;
+  private activeTracks: Array<{ trackKind: TrackKind; channels: number }> = [];
 
   constructor(private rpcRequest: RpcRequest) {
     this.pipeline = new RecordingPipeline();
@@ -58,26 +61,26 @@ export class AudioCaptureManager {
     systemAudioEnabled: boolean;
   }): Promise<string> {
     this.sessionId = nanoid();
-    this.chunkIndex = 0;
+    this.chunkIndex = { mic: 0, system: 0 };
     this.totalBytes = 0;
     this.startTime = performance.now();
+    this.activeTracks = [];
 
     await this.pipeline.initialize(DEFAULT_SAMPLE_RATE);
 
-    let micStream: MediaStream | undefined;
-    let systemStream: MediaStream | undefined;
-
+    // Build tracks list
+    const tracks: Array<{ trackKind: TrackKind; channels: number }> = [];
     if (config.micEnabled) {
-      micStream = await this.micCapture.start(config.micDeviceId);
+      tracks.push({ trackKind: "mic", channels: 1 });
     }
-
     if (config.systemAudioEnabled) {
-      systemStream = await this.systemCapture.start();
+      tracks.push({ trackKind: "system", channels: 2 });
     }
+    this.activeTracks = tracks;
 
     const recordingConfig: RecordingConfig = {
       sampleRate: DEFAULT_SAMPLE_RATE,
-      channels: DEFAULT_CHANNELS,
+      channels: 2,
       bitDepth: DEFAULT_BIT_DEPTH,
       micEnabled: config.micEnabled,
       systemAudioEnabled: config.systemAudioEnabled,
@@ -88,21 +91,37 @@ export class AudioCaptureManager {
     await this.rpcRequest.startRecordingSession({
       sessionId: this.sessionId,
       config: recordingConfig,
+      tracks,
     });
 
-    this.pipeline.start({
-      micStream,
-      systemStream,
-      onPcmData: (data: ArrayBuffer) => {
+    // Set up each track independently
+    if (config.micEnabled) {
+      const micStream = await this.micCapture.start(config.micDeviceId);
+      this.pipeline.addTrack("mic", micStream, 1, (data: ArrayBuffer) => {
         this.totalBytes += data.byteLength;
         const base64 = arrayBufferToBase64(data);
         this.rpcRequest.saveRecordingChunk({
           sessionId: this.sessionId!,
-          chunkIndex: this.chunkIndex++,
+          trackKind: "mic",
+          chunkIndex: this.chunkIndex.mic++,
           pcmData: base64,
         });
-      },
-    });
+      });
+    }
+
+    if (config.systemAudioEnabled) {
+      const systemStream = await this.systemCapture.start();
+      this.pipeline.addTrack("system", systemStream, 2, (data: ArrayBuffer) => {
+        this.totalBytes += data.byteLength;
+        const base64 = arrayBufferToBase64(data);
+        this.rpcRequest.saveRecordingChunk({
+          sessionId: this.sessionId!,
+          trackKind: "system",
+          chunkIndex: this.chunkIndex.system++,
+          pcmData: base64,
+        });
+      });
+    }
 
     return this.sessionId;
   }
@@ -116,10 +135,15 @@ export class AudioCaptureManager {
     this.micCapture.stop();
     this.systemCapture.stop();
 
+    const totalChunks: Record<TrackKind, number> = { mic: 0, system: 0 };
+    for (const track of this.activeTracks) {
+      totalChunks[track.trackKind] = this.chunkIndex[track.trackKind];
+    }
+
     const metadata = await this.rpcRequest.finalizeRecording({
       sessionId: this.sessionId,
       config: this.currentConfig!,
-      totalChunks: this.chunkIndex,
+      totalChunks,
     });
 
     this.sessionId = null;
@@ -140,6 +164,14 @@ export class AudioCaptureManager {
     });
 
     this.sessionId = null;
+  }
+
+  getMicAnalyser(): AnalyserNode | null {
+    return this.pipeline.getAnalyserForTrack("mic");
+  }
+
+  getSystemAnalyser(): AnalyserNode | null {
+    return this.pipeline.getAnalyserForTrack("system");
   }
 
   getElapsedMs(): number {

@@ -64,9 +64,17 @@ export function deleteRecording(recordingId: string) {
 
       const recording = recordings[index]!;
 
-      // Delete the WAV file
-      if (fs.existsSync(recording.filePath)) {
-        fs.unlinkSync(recording.filePath);
+      if (recording.tracks && recording.tracks.length > 0) {
+        // New multi-track format: delete directory recursively
+        const dirPath = recording.filePath;
+        if (fs.existsSync(dirPath)) {
+          fs.rmSync(dirPath, { recursive: true });
+        }
+      } else {
+        // Old single-file format
+        if (fs.existsSync(recording.filePath)) {
+          fs.unlinkSync(recording.filePath);
+        }
       }
 
       // Remove from metadata

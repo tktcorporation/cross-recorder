@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRecordingStore } from "../stores/recordingStore.js";
 import { useRpc } from "../hooks/useRpc.js";
+import { useWaveformData } from "../hooks/useWaveformData.js";
+import { WaveformTrack } from "./WaveformTrack.js";
 import type { TrackInfo } from "@shared/types.js";
+
+const TRACK_HEIGHT = 48;
+const BAR_WIDTH = 2;
+const BAR_GAP = 1;
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -23,28 +29,52 @@ async function fetchTrackBuffer(
   return audioContext.decodeAudioData(bytes.buffer);
 }
 
-export function AudioPlayer() {
+function trackLabel(trackKind: string, channels: number): string {
+  const kind = trackKind === "mic" ? "Mic" : "System";
+  const ch = channels === 1 ? "Mono" : "Stereo";
+  return `${kind} (${ch})`;
+}
+
+export function WaveformPlayer() {
   const { request } = useRpc();
 
   const playingRecordingId = useRecordingStore((s) => s.playingRecordingId);
-  const setPlayingRecordingId = useRecordingStore(
-    (s) => s.setPlayingRecordingId,
-  );
+  const setPlayingRecordingId = useRecordingStore((s) => s.setPlayingRecordingId);
   const recordings = useRecordingStore((s) => s.recordings);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [audioBuffers, setAudioBuffers] = useState<AudioBuffer[]>([]);
+  const [tracks, setTracks] = useState<TrackInfo[]>([]);
+  const [containerWidth, setContainerWidth] = useState(0);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodesRef = useRef<AudioBufferSourceNode[]>([]);
-  const audioBuffersRef = useRef<AudioBuffer[]>([]);
   const startTimeRef = useRef(0);
   const offsetRef = useRef(0);
   const rafRef = useRef(0);
+  const isSeekingRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const recording = recordings.find((r) => r.id === playingRecordingId);
+
+  // Container width observation for bar count
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const barCount = Math.max(1, Math.floor(containerWidth / (BAR_WIDTH + BAR_GAP)));
+  const waveforms = useWaveformData(audioBuffers, barCount);
 
   const stopSources = useCallback(() => {
     for (const node of sourceNodesRef.current) {
@@ -60,28 +90,27 @@ export function AudioPlayer() {
 
   const startPlayback = useCallback((offset: number) => {
     const ctx = audioContextRef.current;
-    if (!ctx || audioBuffersRef.current.length === 0) return;
+    if (!ctx || audioBuffers.length === 0) return;
 
+    isSeekingRef.current = true;
     stopSources();
     offsetRef.current = offset;
 
     const nodes: AudioBufferSourceNode[] = [];
-    for (const buffer of audioBuffersRef.current) {
+    for (const buffer of audioBuffers) {
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(ctx.destination);
       nodes.push(source);
     }
 
-    // Set up onended for the first source
     if (nodes[0]) {
       nodes[0].onended = () => {
-        if (ctx.state !== "suspended") {
-          cancelAnimationFrame(rafRef.current);
-          setIsPlaying(false);
-          setCurrentTime(duration);
-          setPlayingRecordingId(null);
-        }
+        if (isSeekingRef.current) return;
+        cancelAnimationFrame(rafRef.current);
+        setIsPlaying(false);
+        setCurrentTime(duration);
+        setPlayingRecordingId(null);
       };
     }
 
@@ -90,8 +119,10 @@ export function AudioPlayer() {
       node.start(0, offset);
     }
     sourceNodesRef.current = nodes;
+    isSeekingRef.current = false;
     setIsPlaying(true);
 
+    cancelAnimationFrame(rafRef.current);
     const updateTime = () => {
       if (ctx.state === "running") {
         const elapsed = ctx.currentTime - startTimeRef.current + offset;
@@ -100,7 +131,7 @@ export function AudioPlayer() {
       rafRef.current = requestAnimationFrame(updateTime);
     };
     rafRef.current = requestAnimationFrame(updateTime);
-  }, [stopSources, duration, setPlayingRecordingId]);
+  }, [stopSources, duration, setPlayingRecordingId, audioBuffers]);
 
   // Load audio buffers when recording changes
   useEffect(() => {
@@ -111,7 +142,8 @@ export function AudioPlayer() {
         audioContextRef.current.close();
         audioContextRef.current = null;
       }
-      audioBuffersRef.current = [];
+      setAudioBuffers([]);
+      setTracks([]);
       setIsPlaying(false);
       setCurrentTime(0);
       setDuration(0);
@@ -125,13 +157,12 @@ export function AudioPlayer() {
       const ctx = new AudioContext();
       audioContextRef.current = ctx;
 
-      // Determine tracks to load
-      const tracks = recording.tracks && recording.tracks.length > 0
+      const trackInfos = recording.tracks && recording.tracks.length > 0
         ? recording.tracks
         : [{ trackKind: "mic" as const, fileName: recording.fileName, filePath: recording.filePath, channels: 2, fileSizeBytes: recording.fileSizeBytes }];
 
       const buffers = await Promise.all(
-        tracks.map((track) => fetchTrackBuffer(request, track, ctx)),
+        trackInfos.map((track) => fetchTrackBuffer(request, track, ctx)),
       );
 
       if (cancelled) {
@@ -139,13 +170,48 @@ export function AudioPlayer() {
         return;
       }
 
-      audioBuffersRef.current = buffers;
+      setTracks(trackInfos);
+      setAudioBuffers(buffers);
       const maxDuration = Math.max(...buffers.map((b) => b.duration));
       setDuration(maxDuration);
       setIsLoading(false);
 
       // Auto-play
-      startPlayback(0);
+      offsetRef.current = 0;
+      startTimeRef.current = ctx.currentTime;
+
+      const nodes: AudioBufferSourceNode[] = [];
+      for (const buffer of buffers) {
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        nodes.push(source);
+      }
+
+      if (nodes[0]) {
+        nodes[0].onended = () => {
+          if (isSeekingRef.current) return;
+          cancelAnimationFrame(rafRef.current);
+          setIsPlaying(false);
+          setCurrentTime(maxDuration);
+          setPlayingRecordingId(null);
+        };
+      }
+
+      for (const node of nodes) {
+        node.start(0, 0);
+      }
+      sourceNodesRef.current = nodes;
+      setIsPlaying(true);
+
+      const updateTime = () => {
+        if (ctx.state === "running") {
+          const elapsed = ctx.currentTime - startTimeRef.current;
+          setCurrentTime(Math.min(elapsed, maxDuration));
+        }
+        rafRef.current = requestAnimationFrame(updateTime);
+      };
+      rafRef.current = requestAnimationFrame(updateTime);
     };
 
     loadAndPlay().catch((err) => {
@@ -164,7 +230,6 @@ export function AudioPlayer() {
     if (!ctx) return;
 
     if (isPlaying) {
-      // Pause
       const elapsed = ctx.currentTime - startTimeRef.current + offsetRef.current;
       ctx.suspend();
       cancelAnimationFrame(rafRef.current);
@@ -172,7 +237,6 @@ export function AudioPlayer() {
       setCurrentTime(elapsed);
       offsetRef.current = elapsed;
     } else {
-      // Resume from where we paused
       if (ctx.state === "suspended") {
         ctx.resume().then(() => {
           startTimeRef.current = ctx.currentTime;
@@ -192,19 +256,16 @@ export function AudioPlayer() {
     }
   }, [isPlaying, duration, startPlayback]);
 
-  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const time = Number(e.target.value);
+  const handleSeek = useCallback((progress: number) => {
+    const time = progress * duration;
     setCurrentTime(time);
-    const ctx = audioContextRef.current;
-    if (!ctx) return;
 
-    // Restart playback from new position
     if (isPlaying) {
       startPlayback(time);
     } else {
       offsetRef.current = time;
     }
-  }, [isPlaying, startPlayback]);
+  }, [isPlaying, duration, startPlayback]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -217,10 +278,32 @@ export function AudioPlayer() {
 
   if (!recording) return null;
 
+  const progress = duration > 0 ? currentTime / duration : 0;
+
   return (
-    <div className="rounded-lg bg-gray-800 p-4">
-      <div className="flex items-center gap-3">
-        {/* Play/Pause */}
+    <div ref={containerRef} className="rounded-lg bg-gray-800 p-4">
+      {/* Waveform tracks */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-4">
+          <span className="text-xs text-gray-400">Loading...</span>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {waveforms.map((waveform, i) => (
+            <WaveformTrack
+              key={tracks[i]?.trackKind ?? i}
+              label={tracks[i] ? trackLabel(tracks[i].trackKind, tracks[i].channels) : "Track"}
+              bars={waveform.bars}
+              progress={progress}
+              height={TRACK_HEIGHT}
+              onSeek={handleSeek}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="mt-3 flex items-center gap-3">
         <button
           type="button"
           onClick={handlePlayPause}
@@ -230,30 +313,14 @@ export function AudioPlayer() {
           {isLoading ? "..." : isPlaying ? "\u23F8" : "\u25B6"}
         </button>
 
-        {/* Progress bar */}
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="w-10 shrink-0 text-right font-mono text-xs text-gray-400">
-            {formatTime(currentTime)}
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={duration || 0}
-            step={0.1}
-            value={currentTime}
-            onChange={handleSeek}
-            className="h-1 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-gray-600 accent-blue-500"
-          />
-          <span className="w-10 shrink-0 font-mono text-xs text-gray-400">
-            {formatTime(duration)}
-          </span>
-        </div>
-      </div>
+        <span className="font-mono text-xs text-gray-400">
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </span>
 
-      {/* File name */}
-      <p className="mt-2 truncate text-center text-xs text-gray-500">
-        {recording.fileName}
-      </p>
+        <p className="min-w-0 flex-1 truncate text-right text-xs text-gray-500">
+          {recording.fileName}
+        </p>
+      </div>
     </div>
   );
 }

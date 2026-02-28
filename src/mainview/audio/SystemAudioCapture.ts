@@ -9,14 +9,22 @@ export class SystemAudioCapture {
         channelCount: 2,
         sampleRate: DEFAULT_SAMPLE_RATE,
       } as MediaTrackConstraints,
-      video: false,
+      video: true,
       systemAudio: "include",
-    } as any);
+    } as DisplayMediaStreamOptions);
 
-    // Remove video tracks if present
+    // Remove video tracks — we only need audio
     for (const track of this.stream.getVideoTracks()) {
       track.stop();
       this.stream.removeTrack(track);
+    }
+
+    // Validate that audio tracks were actually captured
+    if (this.stream.getAudioTracks().length === 0) {
+      this.stop();
+      throw new Error(
+        "No audio tracks available. The selected source may not support system audio capture.",
+      );
     }
 
     // Disable audio processing to capture raw system audio

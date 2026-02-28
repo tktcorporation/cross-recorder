@@ -4,7 +4,7 @@ export default {
   app: {
     name: "Cross Recorder",
     identifier: "dev.crossrecorder.app",
-    version: "0.3.0",
+    version: "0.5.0",
   },
   release: {
     baseUrl:

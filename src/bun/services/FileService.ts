@@ -284,7 +284,7 @@ export function cancelSession(sessionId: string) {
       return { success: true as const };
     },
     catch: (error) =>
-      new FileReadError({
+      new FileWriteError({
         path: sessions.get(sessionId)?.sessionDir ?? sessionId,
         reason: String(error),
       }),

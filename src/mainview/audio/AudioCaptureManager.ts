@@ -94,33 +94,49 @@ export class AudioCaptureManager {
       tracks,
     });
 
-    // Set up each track independently
-    if (config.micEnabled) {
-      const micStream = await this.micCapture.start(config.micDeviceId);
-      this.pipeline.addTrack("mic", micStream, 1, (data: ArrayBuffer) => {
-        this.totalBytes += data.byteLength;
-        const base64 = arrayBufferToBase64(data);
-        this.rpcRequest.saveRecordingChunk({
-          sessionId: this.sessionId!,
-          trackKind: "mic",
-          chunkIndex: this.chunkIndex.mic++,
-          pcmData: base64,
+    try {
+      // Set up each track independently
+      if (config.micEnabled) {
+        const micStream = await this.micCapture.start(config.micDeviceId);
+        this.pipeline.addTrack("mic", micStream, 1, (data: ArrayBuffer) => {
+          this.totalBytes += data.byteLength;
+          const base64 = arrayBufferToBase64(data);
+          this.rpcRequest.saveRecordingChunk({
+            sessionId: this.sessionId!,
+            trackKind: "mic",
+            chunkIndex: this.chunkIndex.mic++,
+            pcmData: base64,
+          });
         });
-      });
-    }
+      }
 
-    if (config.systemAudioEnabled) {
-      const systemStream = await this.systemCapture.start();
-      this.pipeline.addTrack("system", systemStream, 2, (data: ArrayBuffer) => {
-        this.totalBytes += data.byteLength;
-        const base64 = arrayBufferToBase64(data);
-        this.rpcRequest.saveRecordingChunk({
-          sessionId: this.sessionId!,
-          trackKind: "system",
-          chunkIndex: this.chunkIndex.system++,
-          pcmData: base64,
-        });
-      });
+      if (config.systemAudioEnabled) {
+        const systemStream = await this.systemCapture.start();
+        this.pipeline.addTrack(
+          "system",
+          systemStream,
+          2,
+          (data: ArrayBuffer) => {
+            this.totalBytes += data.byteLength;
+            const base64 = arrayBufferToBase64(data);
+            this.rpcRequest.saveRecordingChunk({
+              sessionId: this.sessionId!,
+              trackKind: "system",
+              chunkIndex: this.chunkIndex.system++,
+              pcmData: base64,
+            });
+          },
+        );
+      }
+    } catch (err) {
+      // Clean up any partially-started resources
+      this.pipeline.stop();
+      this.micCapture.stop();
+      this.systemCapture.stop();
+      const sid = this.sessionId;
+      this.sessionId = null;
+      await this.rpcRequest.cancelRecording({ sessionId: sid });
+      throw err;
     }
 
     return this.sessionId;

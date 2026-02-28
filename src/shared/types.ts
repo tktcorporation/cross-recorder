@@ -42,3 +42,12 @@ export type RecordingStatus = {
   elapsedMs: number;
   fileSizeBytes: number;
 };
+
+export type UpdateStatus =
+  | "idle"
+  | "checking"
+  | "available"
+  | "downloading"
+  | "ready"
+  | "applying"
+  | "error";

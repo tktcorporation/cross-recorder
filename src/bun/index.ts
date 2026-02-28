@@ -1,5 +1,6 @@
 import { BrowserWindow } from "electrobun/bun";
 import { rpc } from "./rpc.js";
+import * as UpdateService from "./services/UpdateService.js";
 
 new BrowserWindow({
   title: "Cross Recorder",
@@ -12,4 +13,8 @@ new BrowserWindow({
   },
   rpc,
   renderer: "cef",
+});
+
+UpdateService.init((payload) => {
+  rpc.send.updateStatus(payload);
 });

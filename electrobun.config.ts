@@ -4,7 +4,11 @@ export default {
   app: {
     name: "Cross Recorder",
     identifier: "dev.crossrecorder.app",
-    version: "0.1.0",
+    version: "0.3.0",
+  },
+  release: {
+    baseUrl:
+      "https://github.com/tktcorporation/cross-recorder/releases/latest/download",
   },
   runtime: {
     exitOnLastWindowClosed: true,

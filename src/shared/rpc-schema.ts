@@ -5,6 +5,7 @@ import type {
   RecordingMetadata,
   RecordingState,
   TrackKind,
+  UpdateStatus,
 } from "./types.js";
 
 export type CrossRecorderRPC = {
@@ -55,6 +56,26 @@ export type CrossRecorderRPC = {
         params: { filePath: string };
         response: { data: string; mimeType: string };
       };
+      checkForUpdate: {
+        params: Record<string, never>;
+        response: {
+          version: string;
+          updateAvailable: boolean;
+          error: string;
+        };
+      };
+      downloadUpdate: {
+        params: Record<string, never>;
+        response: { success: boolean; error: string };
+      };
+      applyUpdate: {
+        params: Record<string, never>;
+        response: { success: boolean; error: string };
+      };
+      getAppVersion: {
+        params: Record<string, never>;
+        response: { version: string; channel: string };
+      };
     };
     messages: {
       logFromRenderer: { level: string; message: string };
@@ -69,6 +90,11 @@ export type CrossRecorderRPC = {
         fileSizeBytes: number;
       };
       deviceListChanged: { devices: AudioDevice[] };
+      updateStatus: {
+        status: UpdateStatus;
+        message: string;
+        progress?: number;
+      };
     };
   }>;
 };

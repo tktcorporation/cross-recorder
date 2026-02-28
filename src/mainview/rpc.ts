@@ -15,6 +15,11 @@ const rpc = Electroview.defineRPC<CrossRecorderRPC>({
           new CustomEvent("device-list-changed", { detail: data }),
         );
       },
+      updateStatus: (data) => {
+        window.dispatchEvent(
+          new CustomEvent("update-status", { detail: data }),
+        );
+      },
     },
   },
 });

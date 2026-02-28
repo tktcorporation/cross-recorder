@@ -1,0 +1,38 @@
+name: Changeset Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  changeset-check:
+    name: Check for changeset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for changeset files
+        run: |
+          # Get changed files in this PR compared to base branch
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+
+          # Skip check if only non-code files changed
+          CODE_CHANGES=$(echo "$CHANGED_FILES" | grep -E '^src/|^electrobun\.config' || true)
+          if [ -z "$CODE_CHANGES" ]; then
+            echo "No code changes detected, skipping changeset check"
+            exit 0
+          fi
+
+          # Check if a changeset file was added
+          CHANGESET_FILES=$(echo "$CHANGED_FILES" | grep -E '^\.changeset/.+\.md$' | grep -v 'README.md' || true)
+          if [ -z "$CHANGESET_FILES" ]; then
+            echo "::error::No changeset found. Please run 'pnpm changeset' to create one."
+            echo ""
+            echo "If this change doesn't need a release, add an empty changeset with 'pnpm changeset --empty'."
+            exit 1
+          fi
+
+          echo "Changeset found:"
+          echo "$CHANGESET_FILES"

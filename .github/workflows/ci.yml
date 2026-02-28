@@ -27,5 +27,8 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
+      - name: Test
+        run: pnpm test
+
       - name: Vite build
         run: pnpm build:vite

@@ -211,7 +211,7 @@ jobs:
             APP_DIR="$BUILD_DIR"
           fi
           cd "$(dirname "$APP_DIR")"
-          tar -cf "$GITHUB_WORKSPACE/app-bundle.tar" "$(basename "$APP_DIR")"
+          tar --force-local -cf "$GITHUB_WORKSPACE/app-bundle.tar" "$(basename "$APP_DIR")"
           cd "$GITHUB_WORKSPACE"
           if command -v zstd &> /dev/null; then
             zstd -19 --rm -o "${PREFIX}-CrossRecorder.tar.zst" app-bundle.tar

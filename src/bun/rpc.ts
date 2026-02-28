@@ -1,6 +1,5 @@
 import { BrowserView } from "electrobun/bun";
 import { Effect } from "effect";
-import * as fs from "node:fs";
 import type { CrossRecorderRPC } from "../shared/rpc-schema.js";
 import type { RecordingConfig, TrackKind } from "../shared/types.js";
 import * as FileService from "./services/FileService.js";
@@ -62,24 +61,11 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
       },
 
       openFileLocation: async (params: { filePath: string }) => {
-        const platform = process.platform;
-        if (platform === "darwin") {
-          Bun.spawn(["open", "-R", params.filePath]);
-        } else if (platform === "win32") {
-          Bun.spawn(["explorer", "/select,", params.filePath]);
-        } else {
-          const dir = params.filePath.substring(
-            0,
-            params.filePath.lastIndexOf("/"),
-          );
-          Bun.spawn(["xdg-open", dir]);
-        }
+        return Effect.runPromise(FileService.openFileLocation(params.filePath));
       },
 
       getPlaybackData: async (params: { filePath: string }) => {
-        const fileBuffer = fs.readFileSync(params.filePath);
-        const base64 = fileBuffer.toString("base64");
-        return { data: base64, mimeType: "audio/wav" };
+        return Effect.runPromise(FileService.getPlaybackData(params.filePath));
       },
 
       checkForUpdate: async () => {

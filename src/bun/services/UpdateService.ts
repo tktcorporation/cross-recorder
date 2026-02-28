@@ -1,5 +1,11 @@
 import { Updater } from "electrobun/bun";
 import type { UpdateStatusEntry } from "electrobun/bun";
+import { Effect } from "effect";
+import {
+  UpdateApplyError,
+  UpdateCheckError,
+  UpdateDownloadError,
+} from "../../shared/errors.js";
 import type { UpdateStatus } from "../../shared/types.js";
 
 type SendUpdateStatus = (payload: {
@@ -63,51 +69,51 @@ export function init(send: SendUpdateStatus) {
   }, 5000);
 }
 
-export async function checkForUpdate() {
-  try {
-    const result = await Updater.checkForUpdate();
-    return {
-      version: result.version || "",
-      updateAvailable: result.updateAvailable || false,
-      error: result.error || "",
-    };
-  } catch (e) {
-    return {
-      version: "",
-      updateAvailable: false,
-      error: String(e),
-    };
-  }
+export function checkForUpdate() {
+  return Effect.tryPromise({
+    try: async () => {
+      const result = await Updater.checkForUpdate();
+      return {
+        version: result.version || "",
+        updateAvailable: result.updateAvailable || false,
+        error: result.error || "",
+      };
+    },
+    catch: (e) => new UpdateCheckError({ reason: String(e) }),
+  });
 }
 
-export async function downloadUpdate() {
-  try {
-    await Updater.downloadUpdate();
-    const info = Updater.updateInfo();
-    if (info?.error) {
-      return { success: false, error: info.error };
-    }
-    return { success: true, error: "" };
-  } catch (e) {
-    return { success: false, error: String(e) };
-  }
+export function downloadUpdate() {
+  return Effect.tryPromise({
+    try: async () => {
+      await Updater.downloadUpdate();
+      const info = Updater.updateInfo();
+      if (info?.error) {
+        return { success: false, error: info.error };
+      }
+      return { success: true, error: "" };
+    },
+    catch: (e) => new UpdateDownloadError({ reason: String(e) }),
+  });
 }
 
-export async function applyUpdate() {
-  try {
-    await Updater.applyUpdate();
-    return { success: true, error: "" };
-  } catch (e) {
-    return { success: false, error: String(e) };
-  }
+export function applyUpdate() {
+  return Effect.tryPromise({
+    try: async () => {
+      await Updater.applyUpdate();
+      return { success: true, error: "" };
+    },
+    catch: (e) => new UpdateApplyError({ reason: String(e) }),
+  });
 }
 
-export async function getAppVersion() {
-  try {
-    const version = await Updater.localInfo.version();
-    const channel = await Updater.localInfo.channel();
-    return { version, channel };
-  } catch {
-    return { version: "unknown", channel: "dev" };
-  }
+export function getAppVersion() {
+  return Effect.tryPromise({
+    try: async () => {
+      const version = await Updater.localInfo.version();
+      const channel = await Updater.localInfo.channel();
+      return { version, channel };
+    },
+    catch: (e) => new UpdateCheckError({ reason: String(e) }),
+  });
 }

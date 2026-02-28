@@ -83,19 +83,19 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
       },
 
       checkForUpdate: async () => {
-        return UpdateService.checkForUpdate();
+        return Effect.runPromise(UpdateService.checkForUpdate());
       },
 
       downloadUpdate: async () => {
-        return UpdateService.downloadUpdate();
+        return Effect.runPromise(UpdateService.downloadUpdate());
       },
 
       applyUpdate: async () => {
-        return UpdateService.applyUpdate();
+        return Effect.runPromise(UpdateService.applyUpdate());
       },
 
       getAppVersion: async () => {
-        return UpdateService.getAppVersion();
+        return Effect.runPromise(UpdateService.getAppVersion());
       },
     },
 

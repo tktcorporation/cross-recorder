@@ -5,7 +5,15 @@
     "no-console": "off",
     "eqeqeq": "error",
     "no-var": "error",
-    "prefer-const": "warn"
+    "prefer-const": "warn",
+    "no-explicit-any": "warn",
+    "no-non-null-assertion": "warn",
+    "no-throw-literal": "error",
+    "no-empty-catch": "error",
+    "no-unsafe-finally": "error",
+    "no-fallthrough": "error",
+    "no-implicit-coercion": "warn",
+    "no-return-await": "warn"
   },
   "ignorePatterns": ["dist", "node_modules", "*.worklet.js"]
 }

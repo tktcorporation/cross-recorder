@@ -1,11 +1,23 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicolo-ribaudo/tc39-proposal-json-schema/refs/heads/main/oxlint/schema.json",
+  "jsPlugins": ["./src/lint/effect-plugin.mjs"],
   "rules": {
+    "effect/no-runpromise-without-catch": "warn",
+    "effect/no-throw-in-effect": "warn",
+    "effect/prefer-effect-over-trycatch": "warn",
     "no-unused-vars": "warn",
     "no-console": "off",
     "eqeqeq": "error",
     "no-var": "error",
-    "prefer-const": "warn"
+    "prefer-const": "warn",
+    "no-explicit-any": "warn",
+    "no-non-null-assertion": "warn",
+    "no-throw-literal": "error",
+    "no-empty-catch": "error",
+    "no-unsafe-finally": "error",
+    "no-fallthrough": "error",
+    "no-implicit-coercion": "warn",
+    "no-return-await": "warn"
   },
   "ignorePatterns": ["dist", "node_modules", "*.worklet.js"]
 }

@@ -7,7 +7,11 @@ import {
   RECORDINGS_DIR,
   WAV_HEADER_SIZE,
 } from "../../shared/constants.js";
-import { FileWriteError, FileReadError } from "../../shared/errors.js";
+import {
+  FileWriteError,
+  FileReadError,
+  ShellCommandError,
+} from "../../shared/errors.js";
 import type {
   RecordingConfig,
   RecordingMetadata,
@@ -217,6 +221,42 @@ export function finalizeRecording(
     catch: (error) =>
       new FileWriteError({
         path: sessions.get(sessionId)?.sessionDir ?? sessionId,
+        reason: String(error),
+      }),
+  });
+}
+
+export function getPlaybackData(filePath: string) {
+  return Effect.tryPromise({
+    try: async () => {
+      const fileBuffer = fs.readFileSync(filePath);
+      const base64 = fileBuffer.toString("base64");
+      return { data: base64, mimeType: "audio/wav" };
+    },
+    catch: (error) =>
+      new FileReadError({
+        path: filePath,
+        reason: String(error),
+      }),
+  });
+}
+
+export function openFileLocation(filePath: string) {
+  return Effect.tryPromise({
+    try: async () => {
+      const platform = process.platform;
+      if (platform === "darwin") {
+        Bun.spawn(["open", "-R", filePath]);
+      } else if (platform === "win32") {
+        Bun.spawn(["explorer", "/select,", filePath]);
+      } else {
+        const dir = filePath.substring(0, filePath.lastIndexOf("/"));
+        Bun.spawn(["xdg-open", dir]);
+      }
+    },
+    catch: (error) =>
+      new ShellCommandError({
+        command: "openFileLocation",
         reason: String(error),
       }),
   });

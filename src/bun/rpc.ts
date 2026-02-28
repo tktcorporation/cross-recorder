@@ -5,6 +5,7 @@ import type { CrossRecorderRPC } from "../shared/rpc-schema.js";
 import type { RecordingConfig, TrackKind } from "../shared/types.js";
 import * as FileService from "./services/FileService.js";
 import * as RecordingManager from "./services/RecordingManager.js";
+import * as UpdateService from "./services/UpdateService.js";
 
 export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
   handlers: {
@@ -79,6 +80,22 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
         const fileBuffer = fs.readFileSync(params.filePath);
         const base64 = fileBuffer.toString("base64");
         return { data: base64, mimeType: "audio/wav" };
+      },
+
+      checkForUpdate: async () => {
+        return UpdateService.checkForUpdate();
+      },
+
+      downloadUpdate: async () => {
+        return UpdateService.downloadUpdate();
+      },
+
+      applyUpdate: async () => {
+        return UpdateService.applyUpdate();
+      },
+
+      getAppVersion: async () => {
+        return UpdateService.getAppVersion();
       },
     },
 

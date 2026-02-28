@@ -116,6 +116,110 @@ jobs:
           Write-Output "Found build dir: $($buildDir.FullName)"
           Compress-Archive -Path $buildDir.FullName -DestinationPath "CrossRecorder-${{ needs.changesets.outputs.version }}-windows-x64.zip"
 
+      - name: Generate updater artifacts (macOS)
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          # Find the build output directory (e.g., build/stable-macos-arm64/)
+          BUILD_DIR=$(find build -maxdepth 1 -type d -name "*-macos-*" | head -1)
+          if [ -z "$BUILD_DIR" ]; then
+            echo "Warning: Could not find build dir for updater artifacts"
+            exit 0
+          fi
+
+          # Read hash from version.json
+          VERSION_JSON="$BUILD_DIR/Resources/version.json"
+          if [ ! -f "$VERSION_JSON" ]; then
+            # Try inside .app bundle
+            VERSION_JSON=$(find "$BUILD_DIR" -path "*/Resources/version.json" | head -1)
+          fi
+
+          if [ -f "$VERSION_JSON" ]; then
+            HASH=$(cat "$VERSION_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
+            CHANNEL=$(cat "$VERSION_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('channel','stable'))")
+            echo "Found hash=$HASH channel=$CHANNEL"
+          else
+            echo "Warning: version.json not found, skipping updater artifacts"
+            exit 0
+          fi
+
+          PREFIX="${CHANNEL}-macos-arm64"
+          BASE_URL="https://github.com/tktcorporation/cross-recorder/releases/latest/download"
+
+          # Create update.json
+          cat > "$GITHUB_WORKSPACE/${PREFIX}-update.json" <<EOJSON
+          {
+            "version": "${{ needs.changesets.outputs.version }}",
+            "hash": "$HASH",
+            "updateAvailable": false,
+            "updateReady": false,
+            "error": ""
+          }
+          EOJSON
+
+          # Create tar.zst bundle for updater
+          APP_BUNDLE=$(find "$BUILD_DIR" -name "*.app" -type d | head -1)
+          if [ -n "$APP_BUNDLE" ]; then
+            cd "$(dirname "$APP_BUNDLE")"
+            tar -cf "$GITHUB_WORKSPACE/app-bundle.tar" "$(basename "$APP_BUNDLE")"
+            cd "$GITHUB_WORKSPACE"
+            if command -v zstd &> /dev/null; then
+              zstd -19 --rm -o "${PREFIX}-Cross Recorder.app.tar.zst" app-bundle.tar
+            else
+              # Fallback: install zstd
+              brew install zstd 2>/dev/null || sudo apt-get install -y zstd 2>/dev/null || true
+              zstd -19 --rm -o "${PREFIX}-Cross Recorder.app.tar.zst" app-bundle.tar
+            fi
+          fi
+
+      - name: Generate updater artifacts (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          BUILD_DIR=$(find build -maxdepth 1 -type d -name "*-win-*" | head -1)
+          if [ -z "$BUILD_DIR" ]; then
+            echo "Warning: Could not find build dir for updater artifacts"
+            exit 0
+          fi
+
+          VERSION_JSON=$(find "$BUILD_DIR" -name "version.json" -path "*/Resources/*" | head -1)
+          if [ -f "$VERSION_JSON" ]; then
+            HASH=$(cat "$VERSION_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
+            CHANNEL=$(cat "$VERSION_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('channel','stable'))")
+            echo "Found hash=$HASH channel=$CHANNEL"
+          else
+            echo "Warning: version.json not found, skipping updater artifacts"
+            exit 0
+          fi
+
+          PREFIX="${CHANNEL}-win-x64"
+
+          # Create update.json
+          cat > "${PREFIX}-update.json" <<EOJSON
+          {
+            "version": "${{ needs.changesets.outputs.version }}",
+            "hash": "$HASH",
+            "updateAvailable": false,
+            "updateReady": false,
+            "error": ""
+          }
+          EOJSON
+
+          # Create tar.zst bundle for updater
+          APP_DIR=$(find "$BUILD_DIR" -maxdepth 1 -type d -name "Cross*Recorder*" | head -1)
+          if [ -z "$APP_DIR" ]; then
+            APP_DIR="$BUILD_DIR"
+          fi
+          cd "$(dirname "$APP_DIR")"
+          tar -cf "$GITHUB_WORKSPACE/app-bundle.tar" "$(basename "$APP_DIR")"
+          cd "$GITHUB_WORKSPACE"
+          if command -v zstd &> /dev/null; then
+            zstd -19 --rm -o "${PREFIX}-CrossRecorder.tar.zst" app-bundle.tar
+          else
+            choco install zstandard -y 2>/dev/null || true
+            zstd -19 --rm -o "${PREFIX}-CrossRecorder.tar.zst" app-bundle.tar
+          fi
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -123,6 +227,8 @@ jobs:
           path: |
             CrossRecorder-*.tar.gz
             CrossRecorder-*.zip
+            *-update.json
+            *.tar.zst
           retention-days: 30
 
   create-release:
@@ -156,5 +262,7 @@ jobs:
           files: |
             artifacts/**/*.tar.gz
             artifacts/**/*.zip
+            artifacts/**/*-update.json
+            artifacts/**/*.tar.zst
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

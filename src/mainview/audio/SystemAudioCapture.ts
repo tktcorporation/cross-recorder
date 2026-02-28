@@ -19,6 +19,15 @@ export class SystemAudioCapture {
       this.stream.removeTrack(track);
     }
 
+    // Disable audio processing to capture raw system audio
+    for (const track of this.stream.getAudioTracks()) {
+      await track.applyConstraints({
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      });
+    }
+
     return this.stream;
   }
 

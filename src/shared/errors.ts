@@ -28,3 +28,22 @@ export class RecordingNotFoundError extends Data.TaggedError(
 )<{
   readonly recordingId: string;
 }> {}
+
+export class UpdateCheckError extends Data.TaggedError("UpdateCheckError")<{
+  readonly reason: string;
+}> {}
+
+export class UpdateDownloadError extends Data.TaggedError(
+  "UpdateDownloadError",
+)<{
+  readonly reason: string;
+}> {}
+
+export class UpdateApplyError extends Data.TaggedError("UpdateApplyError")<{
+  readonly reason: string;
+}> {}
+
+export class ShellCommandError extends Data.TaggedError("ShellCommandError")<{
+  readonly command: string;
+  readonly reason: string;
+}> {}

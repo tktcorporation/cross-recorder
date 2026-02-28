@@ -1,7 +1,7 @@
 import { SourcePanel } from "./components/SourcePanel.js";
 import { RecordPanel } from "./components/RecordPanel.js";
 import { RecordingsList } from "./components/RecordingsList.js";
-import { AudioPlayer } from "./components/AudioPlayer.js";
+import { WaveformPlayer } from "./components/WaveformPlayer.js";
 import { UpdateNotification } from "./components/UpdateNotification.js";
 
 export default function App() {
@@ -27,7 +27,7 @@ export default function App() {
 
       {/* Audio player (bottom) */}
       <div className="shrink-0 border-t border-gray-700 p-4">
-        <AudioPlayer />
+        <WaveformPlayer />
       </div>
     </div>
   );

@@ -8,12 +8,23 @@ import {
   WAV_HEADER_SIZE,
 } from "../../shared/constants.js";
 import { FileWriteError, FileReadError } from "../../shared/errors.js";
-import type { RecordingConfig, RecordingMetadata } from "../../shared/types.js";
+import type {
+  RecordingConfig,
+  RecordingMetadata,
+  TrackKind,
+  TrackInfo,
+} from "../../shared/types.js";
 
-type SessionState = {
+type TrackState = {
   fd: number;
   filePath: string;
   bytesWritten: number;
+  channels: number;
+};
+
+type SessionState = {
+  sessionDir: string;
+  tracks: Map<TrackKind, TrackState>;
 };
 
 const sessions = new Map<string, SessionState>();
@@ -26,13 +37,14 @@ const recordingsDir = path.join(
 
 function writeWavHeader(
   fd: number,
-  config: RecordingConfig,
+  channels: number,
+  sampleRate: number,
+  bitDepth: number,
   dataSize: number,
 ): void {
   const buf = Buffer.alloc(WAV_HEADER_SIZE);
-  const byteRate =
-    config.sampleRate * config.channels * (config.bitDepth / 8);
-  const blockAlign = config.channels * (config.bitDepth / 8);
+  const byteRate = sampleRate * channels * (bitDepth / 8);
+  const blockAlign = channels * (bitDepth / 8);
 
   // RIFF header
   buf.write("RIFF", 0);
@@ -43,11 +55,11 @@ function writeWavHeader(
   buf.write("fmt ", 12);
   buf.writeUInt32LE(16, 16); // sub-chunk size
   buf.writeUInt16LE(1, 20); // PCM format
-  buf.writeUInt16LE(config.channels, 22);
-  buf.writeUInt32LE(config.sampleRate, 24);
+  buf.writeUInt16LE(channels, 22);
+  buf.writeUInt32LE(sampleRate, 24);
   buf.writeUInt32LE(byteRate, 28);
   buf.writeUInt16LE(blockAlign, 32);
-  buf.writeUInt16LE(config.bitDepth, 34);
+  buf.writeUInt16LE(bitDepth, 34);
 
   // data sub-chunk
   buf.write("data", 36);
@@ -56,31 +68,47 @@ function writeWavHeader(
   fs.writeSync(fd, buf, 0, WAV_HEADER_SIZE, 0);
 }
 
-export function startSession(sessionId: string, config: RecordingConfig) {
+export function startSession(
+  sessionId: string,
+  config: RecordingConfig,
+  tracks: Array<{ trackKind: TrackKind; channels: number }>,
+) {
   return Effect.tryPromise({
     try: async () => {
-      await Bun.write(Bun.file(recordingsDir + "/.keep"), "");
       fs.mkdirSync(recordingsDir, { recursive: true });
 
-      const filePath = path.join(recordingsDir, `${sessionId}.wav`);
-      const fd = fs.openSync(filePath, "w");
+      const sessionDir = path.join(recordingsDir, sessionId);
+      fs.mkdirSync(sessionDir, { recursive: true });
 
-      // Write placeholder WAV header
-      writeWavHeader(fd, config, 0);
+      const trackMap = new Map<TrackKind, TrackState>();
 
-      sessions.set(sessionId, { fd, filePath, bytesWritten: 0 });
+      for (const track of tracks) {
+        const filePath = path.join(sessionDir, `${track.trackKind}.wav`);
+        const fd = fs.openSync(filePath, "w");
 
-      return { success: true as const, filePath };
+        writeWavHeader(fd, track.channels, config.sampleRate, config.bitDepth, 0);
+
+        trackMap.set(track.trackKind, {
+          fd,
+          filePath,
+          bytesWritten: 0,
+          channels: track.channels,
+        });
+      }
+
+      sessions.set(sessionId, { sessionDir, tracks: trackMap });
+
+      return { success: true as const, filePath: sessionDir };
     },
     catch: (error) =>
       new FileWriteError({
-        path: path.join(recordingsDir, `${sessionId}.wav`),
+        path: path.join(recordingsDir, sessionId),
         reason: String(error),
       }),
   });
 }
 
-export function writeChunk(sessionId: string, pcmData: string) {
+export function writeChunk(sessionId: string, trackKind: TrackKind, pcmData: string) {
   return Effect.tryPromise({
     try: async () => {
       const session = sessions.get(sessionId);
@@ -88,15 +116,20 @@ export function writeChunk(sessionId: string, pcmData: string) {
         throw new Error(`Session not found: ${sessionId}`);
       }
 
-      const buffer = Buffer.from(pcmData, "base64");
-      fs.writeSync(session.fd, buffer, 0, buffer.length);
-      session.bytesWritten += buffer.length;
+      const track = session.tracks.get(trackKind);
+      if (!track) {
+        throw new Error(`Track not found: ${trackKind} in session ${sessionId}`);
+      }
 
-      return { success: true as const, bytesWritten: session.bytesWritten };
+      const buffer = Buffer.from(pcmData, "base64");
+      fs.writeSync(track.fd, buffer, 0, buffer.length);
+      track.bytesWritten += buffer.length;
+
+      return { success: true as const, bytesWritten: track.bytesWritten };
     },
     catch: (error) =>
       new FileWriteError({
-        path: sessions.get(sessionId)?.filePath ?? sessionId,
+        path: sessions.get(sessionId)?.sessionDir ?? sessionId,
         reason: String(error),
       }),
   });
@@ -105,7 +138,7 @@ export function writeChunk(sessionId: string, pcmData: string) {
 export function finalizeRecording(
   sessionId: string,
   config: RecordingConfig,
-  _totalChunks: number,
+  _totalChunks: Record<TrackKind, number>,
 ) {
   return Effect.tryPromise({
     try: async () => {
@@ -114,35 +147,67 @@ export function finalizeRecording(
         throw new Error(`Session not found: ${sessionId}`);
       }
 
-      // Rewrite WAV header with correct data size
-      writeWavHeader(session.fd, config, session.bytesWritten);
-      fs.closeSync(session.fd);
+      // Rewrite WAV headers and close FDs for each track
+      for (const track of session.tracks.values()) {
+        writeWavHeader(
+          track.fd,
+          track.channels,
+          config.sampleRate,
+          config.bitDepth,
+          track.bytesWritten,
+        );
+        fs.closeSync(track.fd);
+      }
 
-      // Rename to timestamped filename
+      // Rename session directory to timestamp-based name
       const now = new Date();
       const timestamp = now
         .toISOString()
         .replace(/T/, "_")
         .replace(/:/g, "-")
         .replace(/\.\d{3}Z$/, "");
-      const newFileName = `${timestamp}.wav`;
-      const newFilePath = path.join(recordingsDir, newFileName);
-      fs.renameSync(session.filePath, newFilePath);
+      const newDirPath = path.join(recordingsDir, timestamp);
+      fs.renameSync(session.sessionDir, newDirPath);
 
-      const stat = fs.statSync(newFilePath);
+      // Compute duration from the longest track
+      let maxBytes = 0;
+      let maxChannels = config.channels;
+      let totalSizeBytes = 0;
+
+      const tracksInfo: TrackInfo[] = [];
+      for (const [trackKind, track] of session.tracks.entries()) {
+        const newTrackPath = path.join(newDirPath, `${trackKind}.wav`);
+        const stat = fs.statSync(newTrackPath);
+        totalSizeBytes += stat.size;
+
+        tracksInfo.push({
+          trackKind,
+          fileName: `${trackKind}.wav`,
+          filePath: newTrackPath,
+          channels: track.channels,
+          fileSizeBytes: stat.size,
+        });
+
+        if (track.bytesWritten > maxBytes) {
+          maxBytes = track.bytesWritten;
+          maxChannels = track.channels;
+        }
+      }
+
       const durationMs = Math.round(
-        (session.bytesWritten /
-          (config.sampleRate * config.channels * (config.bitDepth / 8))) *
+        (maxBytes /
+          (config.sampleRate * maxChannels * (config.bitDepth / 8))) *
           1000,
       );
 
       const metadata: RecordingMetadata = {
         id: sessionId,
-        fileName: newFileName,
-        filePath: newFilePath,
+        fileName: timestamp,
+        filePath: newDirPath,
+        tracks: tracksInfo,
         createdAt: now.toISOString(),
         durationMs,
-        fileSizeBytes: stat.size,
+        fileSizeBytes: totalSizeBytes,
         config,
       };
 
@@ -151,7 +216,7 @@ export function finalizeRecording(
     },
     catch: (error) =>
       new FileWriteError({
-        path: sessions.get(sessionId)?.filePath ?? sessionId,
+        path: sessions.get(sessionId)?.sessionDir ?? sessionId,
         reason: String(error),
       }),
   });
@@ -165,9 +230,14 @@ export function cancelSession(sessionId: string) {
         return { success: true as const };
       }
 
-      fs.closeSync(session.fd);
-      if (fs.existsSync(session.filePath)) {
-        fs.unlinkSync(session.filePath);
+      // Close all FDs
+      for (const track of session.tracks.values()) {
+        fs.closeSync(track.fd);
+      }
+
+      // Delete session directory recursively
+      if (fs.existsSync(session.sessionDir)) {
+        fs.rmSync(session.sessionDir, { recursive: true });
       }
 
       sessions.delete(sessionId);
@@ -175,7 +245,7 @@ export function cancelSession(sessionId: string) {
     },
     catch: (error) =>
       new FileReadError({
-        path: sessions.get(sessionId)?.filePath ?? sessionId,
+        path: sessions.get(sessionId)?.sessionDir ?? sessionId,
         reason: String(error),
       }),
   });

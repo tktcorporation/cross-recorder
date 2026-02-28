@@ -26,6 +26,12 @@ function formatDate(iso: string): string {
   return `${y}/${mo}/${day} ${h}:${mi}`;
 }
 
+function trackLabel(trackKind: string, channels: number): string {
+  const kind = trackKind === "mic" ? "Mic" : "System";
+  const ch = channels === 1 ? "Mono" : "Stereo";
+  return `${kind}(${ch})`;
+}
+
 type Props = {
   recording: RecordingMetadata;
 };
@@ -56,6 +62,8 @@ export function RecordingItem({ recording }: Props) {
     }
   };
 
+  const hasTracks = recording.tracks && recording.tracks.length > 0;
+
   return (
     <div className="flex items-center justify-between rounded-md px-3 py-2 transition-colors hover:bg-gray-700">
       {/* Left: Info */}
@@ -70,6 +78,18 @@ export function RecordingItem({ recording }: Props) {
           {" \u00B7 "}
           {formatFileSize(recording.fileSizeBytes)}
         </p>
+        {hasTracks && (
+          <div className="mt-1 flex gap-1.5">
+            {recording.tracks.map((track) => (
+              <span
+                key={track.trackKind}
+                className="rounded bg-gray-700 px-1.5 py-0.5 text-[10px] font-medium text-gray-300"
+              >
+                {trackLabel(track.trackKind, track.channels)}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Right: Actions */}

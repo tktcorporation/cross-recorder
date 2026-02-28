@@ -17,6 +17,8 @@ type RecordingStore = {
   fileSizeBytes: number;
   currentSessionId: string | null;
   playingRecordingId: string | null;
+  micAnalyser: AnalyserNode | null;
+  systemAnalyser: AnalyserNode | null;
 
   // Actions
   setRecordingState: (state: RecordingState) => void;
@@ -30,6 +32,8 @@ type RecordingStore = {
   updateStatus: (elapsedMs: number, fileSizeBytes: number) => void;
   setCurrentSessionId: (id: string | null) => void;
   setPlayingRecordingId: (id: string | null) => void;
+  setMicAnalyser: (analyser: AnalyserNode | null) => void;
+  setSystemAnalyser: (analyser: AnalyserNode | null) => void;
   reset: () => void;
 };
 
@@ -44,6 +48,8 @@ const initialState = {
   fileSizeBytes: 0,
   currentSessionId: null,
   playingRecordingId: null,
+  micAnalyser: null as AnalyserNode | null,
+  systemAnalyser: null as AnalyserNode | null,
 };
 
 export const useRecordingStore = create<RecordingStore>((set) => ({
@@ -63,5 +69,7 @@ export const useRecordingStore = create<RecordingStore>((set) => ({
     set({ elapsedMs, fileSizeBytes }),
   setCurrentSessionId: (id) => set({ currentSessionId: id }),
   setPlayingRecordingId: (id) => set({ playingRecordingId: id }),
+  setMicAnalyser: (analyser) => set({ micAnalyser: analyser }),
+  setSystemAnalyser: (analyser) => set({ systemAnalyser: analyser }),
   reset: () => set(initialState),
 }));

@@ -16,10 +16,21 @@ export type RecordingConfig = {
   micDeviceId: string | null;
 };
 
+export type TrackKind = "mic" | "system";
+
+export type TrackInfo = {
+  trackKind: TrackKind;
+  fileName: string;
+  filePath: string;
+  channels: number;
+  fileSizeBytes: number;
+};
+
 export type RecordingMetadata = {
   id: string;
   fileName: string;
   filePath: string;
+  tracks: TrackInfo[];
   createdAt: string;
   durationMs: number;
   fileSizeBytes: number;

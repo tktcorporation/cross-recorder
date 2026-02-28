@@ -16,6 +16,8 @@ export function useRecording() {
   const updateStatus = useRecordingStore((s) => s.updateStatus);
   const setCurrentSessionId = useRecordingStore((s) => s.setCurrentSessionId);
   const addRecording = useRecordingStore((s) => s.addRecording);
+  const setMicAnalyser = useRecordingStore((s) => s.setMicAnalyser);
+  const setSystemAnalyser = useRecordingStore((s) => s.setSystemAnalyser);
 
   // Listen for status updates from bun process
   useEffect(() => {
@@ -56,6 +58,10 @@ export function useRecording() {
       });
       setCurrentSessionId(sessionId);
 
+      // Expose AnalyserNodes for level meters
+      setMicAnalyser(manager.getMicAnalyser());
+      setSystemAnalyser(manager.getSystemAnalyser());
+
       // Start timer to update elapsed time / file size
       timerRef.current = setInterval(() => {
         if (managerRef.current) {
@@ -77,6 +83,8 @@ export function useRecording() {
     setRecordingState,
     setCurrentSessionId,
     updateStatus,
+    setMicAnalyser,
+    setSystemAnalyser,
     request,
   ]);
 
@@ -98,6 +106,8 @@ export function useRecording() {
     } finally {
       managerRef.current = null;
       setCurrentSessionId(null);
+      setMicAnalyser(null);
+      setSystemAnalyser(null);
       updateStatus(0, 0);
       setRecordingState("idle");
     }
@@ -105,6 +115,8 @@ export function useRecording() {
     recordingState,
     setRecordingState,
     setCurrentSessionId,
+    setMicAnalyser,
+    setSystemAnalyser,
     updateStatus,
     addRecording,
   ]);

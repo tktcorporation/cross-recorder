@@ -1,5 +1,7 @@
 import { useRecordingStore } from "../stores/recordingStore.js";
 import { useAudioDevices } from "../hooks/useAudioDevices.js";
+import { useAudioLevel } from "../hooks/useAudioLevel.js";
+import { LevelMeter } from "./LevelMeter.js";
 
 export function SourcePanel() {
   const micEnabled = useRecordingStore((s) => s.micEnabled);
@@ -9,10 +11,16 @@ export function SourcePanel() {
     (s) => s.setSystemAudioEnabled,
   );
   const recordingState = useRecordingStore((s) => s.recordingState);
+  const micAnalyser = useRecordingStore((s) => s.micAnalyser);
+  const systemAnalyser = useRecordingStore((s) => s.systemAnalyser);
 
   const { devices, selectedMicId, setSelectedMicId } = useAudioDevices();
 
+  const micLevel = useAudioLevel(micAnalyser);
+  const systemLevel = useAudioLevel(systemAnalyser);
+
   const disabled = recordingState !== "idle";
+  const isRecording = recordingState === "recording";
 
   return (
     <div className="rounded-lg bg-gray-800 p-4">
@@ -25,6 +33,11 @@ export function SourcePanel() {
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 text-sm text-white">
             <span>Microphone</span>
+            {micEnabled && (
+              <span className="rounded bg-gray-600 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-300">
+                Mono
+              </span>
+            )}
           </label>
           <button
             type="button"
@@ -45,21 +58,28 @@ export function SourcePanel() {
         </div>
 
         {micEnabled && (
-          <select
-            value={selectedMicId ?? ""}
-            onChange={(e) => setSelectedMicId(e.target.value || null)}
-            disabled={disabled}
-            className="mt-2 w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white focus:border-red-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {devices.length === 0 && (
-              <option value="">No microphones found</option>
+          <>
+            <select
+              value={selectedMicId ?? ""}
+              onChange={(e) => setSelectedMicId(e.target.value || null)}
+              disabled={disabled}
+              className="mt-2 w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white focus:border-red-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {devices.length === 0 && (
+                <option value="">No microphones found</option>
+              )}
+              {devices.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+            {isRecording && (
+              <div className="mt-2">
+                <LevelMeter level={micLevel} />
+              </div>
             )}
-            {devices.map((d) => (
-              <option key={d.deviceId} value={d.deviceId}>
-                {d.label}
-              </option>
-            ))}
-          </select>
+          </>
         )}
       </div>
 
@@ -68,6 +88,11 @@ export function SourcePanel() {
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 text-sm text-white">
             <span>System Audio</span>
+            {systemAudioEnabled && (
+              <span className="rounded bg-gray-600 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-300">
+                Stereo
+              </span>
+            )}
           </label>
           <button
             type="button"
@@ -88,9 +113,16 @@ export function SourcePanel() {
         </div>
 
         {systemAudioEnabled && (
-          <p className="mt-2 text-xs text-gray-500">
-            Screen selection dialog will appear when recording starts
-          </p>
+          <>
+            <p className="mt-2 text-xs text-gray-500">
+              Screen selection dialog will appear when recording starts
+            </p>
+            {isRecording && (
+              <div className="mt-2">
+                <LevelMeter level={systemLevel} />
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

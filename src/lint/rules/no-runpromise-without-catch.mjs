@@ -1,5 +1,5 @@
 /** @type {import('eslint').Rule.RuleModule} */
-module.exports = {
+export default {
   meta: {
     type: "suggestion",
     docs: {
@@ -15,7 +15,6 @@ module.exports = {
   create(context) {
     return {
       CallExpression(node) {
-        // Match Effect.runPromise(...)
         if (
           node.callee.type === "MemberExpression" &&
           node.callee.object.type === "Identifier" &&
@@ -23,7 +22,6 @@ module.exports = {
           node.callee.property.type === "Identifier" &&
           node.callee.property.name === "runPromise"
         ) {
-          // Check if inside try block or async function with catch
           let parent = node.parent;
           let inTryCatch = false;
           while (parent) {
@@ -31,12 +29,10 @@ module.exports = {
               inTryCatch = true;
               break;
             }
-            // If inside an arrow/function that returns (used in RPC handler context), allow
             if (
               parent.type === "ReturnStatement" ||
               parent.type === "ArrowFunctionExpression"
             ) {
-              // Check if the function is inside a try
               let funcParent = parent.parent;
               while (funcParent) {
                 if (funcParent.type === "TryStatement") {

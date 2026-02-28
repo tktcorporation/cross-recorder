@@ -1,5 +1,5 @@
 /** @type {import('eslint').Rule.RuleModule} */
-module.exports = {
+export default {
   meta: {
     type: "suggestion",
     docs: {
@@ -13,16 +13,14 @@ module.exports = {
     schema: [],
   },
   create(context) {
-    const filename = context.getFilename();
-    // Only apply to service files
+    const filename = context.filename ?? context.getFilename();
     if (!filename.includes("/services/")) {
       return {};
     }
 
     return {
       TryStatement(node) {
-        // Check if this file already imports Effect
-        const sourceCode = context.getSourceCode();
+        const sourceCode = context.sourceCode ?? context.getSourceCode();
         const hasEffectImport = sourceCode.ast.body.some(
           (stmt) =>
             stmt.type === "ImportDeclaration" &&

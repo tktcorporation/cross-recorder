@@ -1,5 +1,5 @@
 /** @type {import('eslint').Rule.RuleModule} */
-module.exports = {
+export default {
   meta: {
     type: "suggestion",
     docs: {
@@ -17,7 +17,6 @@ module.exports = {
 
     return {
       CallExpression(node) {
-        // Detect Effect.tryPromise({ try: ... })
         if (
           node.callee.type === "MemberExpression" &&
           node.callee.object.type === "Identifier" &&
@@ -34,7 +33,6 @@ module.exports = {
               p.key.name === "try",
           );
           if (tryProp && tryProp.value) {
-            // Mark that we're inside the try callback
             insideEffectTry = true;
           }
         }

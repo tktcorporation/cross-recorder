@@ -10,6 +10,7 @@ export type RpcResult<A> = RpcSuccess<A> | RpcError;
 export function runRpcEffect<A, E extends { _tag: string }>(
   effect: Effect.Effect<A, E>,
 ): Promise<RpcResult<A>> {
+  // eslint-disable-next-line effect/no-runpromise-without-catch -- catchAll handles all errors
   return Effect.runPromise(
     effect.pipe(
       Effect.map((data): RpcResult<A> => ({ success: true, data })),

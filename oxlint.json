@@ -1,6 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicolo-ribaudo/tc39-proposal-json-schema/refs/heads/main/oxlint/schema.json",
+  "jsPlugins": ["./src/lint/effect-plugin.mjs"],
   "rules": {
+    "effect/no-runpromise-without-catch": "warn",
+    "effect/no-throw-in-effect": "warn",
+    "effect/prefer-effect-over-trycatch": "warn",
     "no-unused-vars": "warn",
     "no-console": "off",
     "eqeqeq": "error",

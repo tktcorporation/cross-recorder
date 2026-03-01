@@ -13,6 +13,12 @@ export class RecordingPipeline {
 
   async initialize(sampleRate: number): Promise<void> {
     this.audioContext = new AudioContext({ sampleRate });
+    // The AudioContext may be created in "suspended" state when the user
+    // gesture chain is broken by an async gap (e.g. dynamic import).
+    // Explicitly resume to ensure audio processing works.
+    if (this.audioContext.state === "suspended") {
+      await this.audioContext.resume();
+    }
     const workletUrl = new URL(
       "./worklets/pcm-recorder.worklet.js",
       import.meta.url,

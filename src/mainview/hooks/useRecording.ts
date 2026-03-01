@@ -7,6 +7,7 @@ export function useRecording() {
   const { request } = useRpc();
   const managerRef = useRef<AudioCaptureManager | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startingRef = useRef(false);
 
   const recordingState = useRecordingStore((s) => s.recordingState);
   const setRecordingState = useRecordingStore((s) => s.setRecordingState);
@@ -34,7 +35,9 @@ export function useRecording() {
   }, [updateStatus]);
 
   const startRecording = useCallback(async () => {
-    if (recordingState !== "idle") return;
+    // Use ref-based guard to prevent double execution across render cycles
+    if (recordingState !== "idle" || startingRef.current) return;
+    startingRef.current = true;
 
     setRecordingState("recording");
 
@@ -74,6 +77,8 @@ export function useRecording() {
     } catch (err) {
       console.error("Failed to start recording:", err);
       setRecordingState("idle");
+    } finally {
+      startingRef.current = false;
     }
   }, [
     recordingState,

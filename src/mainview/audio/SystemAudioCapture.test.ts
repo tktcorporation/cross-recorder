@@ -42,7 +42,7 @@ describe("SystemAudioCapture", () => {
     await capture.start();
 
     expect(getDisplayMedia).toHaveBeenCalledOnce();
-    const opts = getDisplayMedia.mock.calls[0][0];
+    const opts = getDisplayMedia.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(opts.video).toBe(true);
     expect(opts.systemAudio).toBe("include");
     expect(opts.audio).toBeDefined();

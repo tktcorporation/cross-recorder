@@ -21,6 +21,7 @@ export default {
       "dist/index.html": "views/mainview/index.html",
       "dist/assets": "views/mainview/assets",
     },
+    // @ts-expect-error watchIgnore is supported at runtime but not in the type definition
     watchIgnore: ["dist/**"],
     mac: {
       bundleCEF: true,

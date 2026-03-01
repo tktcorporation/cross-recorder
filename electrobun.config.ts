@@ -1,4 +1,5 @@
 import type { ElectrobunConfig } from "electrobun";
+import pkg from "./package.json" with { type: "json" };
 
 type ElectrobunConfigWithWatch = ElectrobunConfig & {
   build?: ElectrobunConfig["build"] & {
@@ -10,7 +11,7 @@ export default {
   app: {
     name: "Cross Recorder",
     identifier: "dev.crossrecorder.app",
-    version: "0.5.0",
+    version: pkg.version,
   },
   release: {
     baseUrl:

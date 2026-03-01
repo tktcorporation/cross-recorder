@@ -8,6 +8,8 @@ function createMockTrack(kind: "audio" | "video", label = "mock-track") {
     enabled: true,
     stop: vi.fn(),
     applyConstraints: vi.fn().mockResolvedValue(undefined),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
   };
 }
 

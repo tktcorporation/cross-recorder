@@ -19,6 +19,7 @@ type RecordingStore = {
   playingRecordingId: string | null;
   micAnalyser: AnalyserNode | null;
   systemAnalyser: AnalyserNode | null;
+  recordingError: string | null;
 
   // Actions
   setRecordingState: (state: RecordingState) => void;
@@ -34,6 +35,7 @@ type RecordingStore = {
   setPlayingRecordingId: (id: string | null) => void;
   setMicAnalyser: (analyser: AnalyserNode | null) => void;
   setSystemAnalyser: (analyser: AnalyserNode | null) => void;
+  setRecordingError: (error: string | null) => void;
   reset: () => void;
 };
 
@@ -50,6 +52,7 @@ const initialState = {
   playingRecordingId: null,
   micAnalyser: null as AnalyserNode | null,
   systemAnalyser: null as AnalyserNode | null,
+  recordingError: null as string | null,
 };
 
 export const useRecordingStore = create<RecordingStore>((set) => ({
@@ -71,5 +74,6 @@ export const useRecordingStore = create<RecordingStore>((set) => ({
   setPlayingRecordingId: (id) => set({ playingRecordingId: id }),
   setMicAnalyser: (analyser) => set({ micAnalyser: analyser }),
   setSystemAnalyser: (analyser) => set({ systemAnalyser: analyser }),
+  setRecordingError: (error) => set({ recordingError: error }),
   reset: () => set(initialState),
 }));

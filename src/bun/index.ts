@@ -4,18 +4,25 @@ import * as UpdateService from "./services/UpdateService.js";
 
 ApplicationMenu.setApplicationMenu([
   {
-    submenu: [{ label: "Quit Cross Recorder", role: "quit" }],
+    label: "Cross Recorder",
+    submenu: [
+      {
+        label: "Quit Cross Recorder",
+        role: "quit",
+        accelerator: "CommandOrControl+Q",
+      },
+    ],
   },
   {
     label: "Edit",
     submenu: [
-      { role: "undo" },
-      { role: "redo" },
+      { role: "undo", accelerator: "CommandOrControl+Z" },
+      { role: "redo", accelerator: "CommandOrControl+Shift+Z" },
       { type: "separator" },
-      { role: "cut" },
-      { role: "copy" },
-      { role: "paste" },
-      { role: "selectAll" },
+      { role: "cut", accelerator: "CommandOrControl+X" },
+      { role: "copy", accelerator: "CommandOrControl+C" },
+      { role: "paste", accelerator: "CommandOrControl+V" },
+      { role: "selectAll", accelerator: "CommandOrControl+A" },
     ],
   },
 ]);

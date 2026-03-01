@@ -48,11 +48,16 @@ export class AudioCaptureManager {
   private totalBytes = 0;
   private currentConfig: RecordingConfig | null = null;
   private activeTracks: Array<{ trackKind: TrackKind; channels: number }> = [];
+  private onTrackEndedCallback: (() => void) | null = null;
 
   constructor(private rpcRequest: RpcRequest) {
     this.pipeline = new RecordingPipeline();
     this.micCapture = new MicrophoneCapture();
     this.systemCapture = new SystemAudioCapture();
+  }
+
+  onTrackEnded(callback: () => void): void {
+    this.onTrackEndedCallback = callback;
   }
 
   async start(config: {
@@ -112,6 +117,9 @@ export class AudioCaptureManager {
 
       if (config.systemAudioEnabled) {
         const systemStream = await this.systemCapture.start();
+        this.systemCapture.onTrackEnded(() => {
+          this.onTrackEndedCallback?.();
+        });
         this.pipeline.addTrack(
           "system",
           systemStream,

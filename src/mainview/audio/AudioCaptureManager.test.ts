@@ -19,6 +19,7 @@ const { mockPipeline, mockMicCapture, mockSystemCapture } = vi.hoisted(
     mockSystemCapture: {
       start: vi.fn().mockResolvedValue({ getTracks: () => [] }),
       stop: vi.fn(),
+      onTrackEnded: vi.fn(),
     },
   }),
 );
@@ -48,6 +49,7 @@ vi.mock("./SystemAudioCapture.js", () => {
     SystemAudioCapture: class {
       start = mockSystemCapture.start;
       stop = mockSystemCapture.stop;
+      onTrackEnded = mockSystemCapture.onTrackEnded;
     },
   };
 });

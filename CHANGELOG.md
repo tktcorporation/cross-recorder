@@ -1,5 +1,11 @@
 # cross-recorder
 
+## 0.5.2
+
+### Patch Changes
+
+- [#14](https://github.com/tktcorporation/cross-recorder/pull/14) [`6719881`](https://github.com/tktcorporation/cross-recorder/commit/6719881ae40a8e4de10b1808d0e2ee1b752f8096) Thanks [@tktcorporation](https://github.com/tktcorporation)! - fix: electrobun.config.ts のバージョンを package.json から自動取得するように変更し、changeset による bump 時のバージョン不一致を防止。エラー型のテストカバレッジも拡充。
+
 ## 0.5.1
 
 ### Patch Changes

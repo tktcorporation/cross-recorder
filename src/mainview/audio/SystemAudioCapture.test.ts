@@ -42,10 +42,13 @@ describe("SystemAudioCapture", () => {
     await capture.start();
 
     expect(getDisplayMedia).toHaveBeenCalledOnce();
-    const opts = getDisplayMedia.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(opts.video).toBe(true);
-    expect(opts.systemAudio).toBe("include");
-    expect(opts.audio).toBeDefined();
+    expect(getDisplayMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        video: true,
+        systemAudio: "include",
+        audio: expect.anything(),
+      }),
+    );
   });
 
   it("removes video tracks from the stream", async () => {

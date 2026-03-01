@@ -1,5 +1,11 @@
 import type { ElectrobunConfig } from "electrobun";
 
+type ElectrobunConfigWithWatch = ElectrobunConfig & {
+  build?: ElectrobunConfig["build"] & {
+    watchIgnore?: string[];
+  };
+};
+
 export default {
   app: {
     name: "Cross Recorder",
@@ -21,7 +27,6 @@ export default {
       "dist/index.html": "views/mainview/index.html",
       "dist/assets": "views/mainview/assets",
     },
-    // @ts-expect-error watchIgnore is supported at runtime but not in the type definition
     watchIgnore: ["dist/**"],
     mac: {
       bundleCEF: true,
@@ -34,4 +39,4 @@ export default {
       bundleCEF: true,
     },
   },
-} satisfies ElectrobunConfig;
+} satisfies ElectrobunConfigWithWatch;

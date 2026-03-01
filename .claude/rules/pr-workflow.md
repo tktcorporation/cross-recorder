@@ -18,9 +18,10 @@ gh pr checks <PR番号> --watch
 ## Changeset
 
 機能追加・バグ修正の PR には必ず changeset ファイルを含める。
+コミット・プッシュ前に changeset ファイルが存在するか確認し、なければ作成すること。
 
 ```bash
-# .changeset/<名前>.md を作成
+# .changeset/<変更を端的に表す名前>.md を作成
 # minor: 機能追加、patch: バグ修正
 ```
 
@@ -32,3 +33,7 @@ gh pr checks <PR番号> --watch
 
 変更の説明
 ```
+
+- CI に `Changeset Check` ジョブがあり、changeset がないと fail する
+- 1 PR に 1 changeset ファイルで十分（複数変更がある場合はまとめてよい）
+- ドキュメントのみの変更やリファクタなど、バージョンに影響しない変更は不要

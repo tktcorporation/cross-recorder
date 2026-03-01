@@ -5,6 +5,7 @@ function createMockTrack(kind: "audio" | "video", label = "mock-track") {
   return {
     kind,
     label,
+    enabled: true,
     stop: vi.fn(),
     applyConstraints: vi.fn().mockResolvedValue(undefined),
   };
@@ -51,7 +52,7 @@ describe("SystemAudioCapture", () => {
     );
   });
 
-  it("removes video tracks from the stream", async () => {
+  it("disables video tracks without stopping them to keep the display media session alive", async () => {
     const audioTrack = createMockTrack("audio");
     const videoTrack = createMockTrack("video");
     const mockStream = createMockStream([audioTrack], [videoTrack]);
@@ -63,8 +64,9 @@ describe("SystemAudioCapture", () => {
 
     await capture.start();
 
-    expect(videoTrack.stop).toHaveBeenCalledOnce();
-    expect(mockStream.removeTrack).toHaveBeenCalledWith(videoTrack);
+    expect(videoTrack.enabled).toBe(false);
+    expect(videoTrack.stop).not.toHaveBeenCalled();
+    expect(mockStream.removeTrack).not.toHaveBeenCalled();
   });
 
   it("throws when no audio tracks are available", async () => {

@@ -13,10 +13,11 @@ export class SystemAudioCapture {
       systemAudio: "include",
     } as DisplayMediaStreamOptions);
 
-    // Remove video tracks — we only need audio
+    // Disable video tracks — we only need audio, but stopping them
+    // would terminate the display media session and kill audio tracks too.
+    // They will be properly cleaned up when stop() is called.
     for (const track of this.stream.getVideoTracks()) {
-      track.stop();
-      this.stream.removeTrack(track);
+      track.enabled = false;
     }
 
     // Validate that audio tracks were actually captured

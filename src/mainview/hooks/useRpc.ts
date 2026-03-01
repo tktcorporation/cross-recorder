@@ -1,8 +1,8 @@
-import { useCallback } from "react";
+import { useMemo } from "react";
 import { rpc } from "../rpc.js";
 
 export function useRpc() {
-  const request = useCallback(
+  const request = useMemo(
     () => ({
       startRecordingSession: (params: Parameters<typeof rpc.request.startRecordingSession>[0]) =>
         rpc.request.startRecordingSession(params),
@@ -24,5 +24,5 @@ export function useRpc() {
     [],
   );
 
-  return { request: request() };
+  return { request };
 }

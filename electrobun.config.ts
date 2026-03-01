@@ -1,10 +1,16 @@
 import type { ElectrobunConfig } from "electrobun";
 
+type ElectrobunConfigWithWatch = ElectrobunConfig & {
+  build?: ElectrobunConfig["build"] & {
+    watchIgnore?: string[];
+  };
+};
+
 export default {
   app: {
     name: "Cross Recorder",
     identifier: "dev.crossrecorder.app",
-    version: "0.3.0",
+    version: "0.5.0",
   },
   release: {
     baseUrl:
@@ -33,4 +39,4 @@ export default {
       bundleCEF: true,
     },
   },
-} satisfies ElectrobunConfig;
+} satisfies ElectrobunConfigWithWatch;

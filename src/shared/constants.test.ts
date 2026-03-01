@@ -34,3 +34,11 @@ describe("constants", () => {
     expect(CHUNK_INTERVAL_MS).toBeGreaterThan(0);
   });
 });
+
+describe("version consistency", () => {
+  it("package.json and electrobun.config.ts versions match", async () => {
+    const pkg = await import("../../package.json");
+    const electrobunConfig = await import("../../electrobun.config.js");
+    expect(electrobunConfig.default.app.version).toBe(pkg.version);
+  });
+});

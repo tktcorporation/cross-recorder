@@ -6,7 +6,7 @@ export function computeWaveformBars(
   channelData: Float32Array,
   barCount: number,
 ): number[] {
-  const bars: number[] = new Array(barCount).fill(0);
+  const bars: number[] = Array.from({ length: barCount }, () => 0);
   if (channelData.length === 0 || barCount <= 0) return bars;
 
   const samplesPerBar = channelData.length / barCount;

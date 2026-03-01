@@ -1,5 +1,11 @@
 # cross-recorder
 
+## 0.6.0
+
+### Minor Changes
+
+- [#19](https://github.com/tktcorporation/cross-recorder/pull/19) [`0d158de`](https://github.com/tktcorporation/cross-recorder/commit/0d158def18808feec4524776160c5caccd5e7a47) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 手動アップデートチェック機能を追加。ヘッダーのバージョン表示をクリックすると最新バージョンの有無を確認でき、更新があればそのままアップデートできるようになった。
+
 ## 0.5.3
 
 ### Patch Changes

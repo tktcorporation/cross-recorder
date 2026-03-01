@@ -1,5 +1,20 @@
 # cross-recorder
 
+## 0.5.3
+
+### Patch Changes
+
+- [#18](https://github.com/tktcorporation/cross-recorder/pull/18) [`f60d294`](https://github.com/tktcorporation/cross-recorder/commit/f60d2947c7808797c123a55aefc3ea93c5c65198) Thanks [@tktcorporation](https://github.com/tktcorporation)! - fix: ApplicationMenu を追加して Cmd+Q でアプリが終了するように修正
+
+  - Electrobun の ApplicationMenu.setApplicationMenu() を設定し、Cmd+Q (Quit) および Edit 系ショートカット (Cmd+C/V/X/Z/A) を有効化
+
+- [#16](https://github.com/tktcorporation/cross-recorder/pull/16) [`fb5867e`](https://github.com/tktcorporation/cross-recorder/commit/fb5867e317d16a91719f5f2fa15d412b90d8bcd3) Thanks [@tktcorporation](https://github.com/tktcorporation)! - fix: 録音開始直後に停止してしまう問題を修正
+
+  - AudioContext が suspended 状態で作成された場合に明示的に resume する
+  - useRpc が毎レンダリング新しい request オブジェクトを返していた問題を useMemo で修正
+  - startRecording の二重実行を ref ベースのガードで防止
+  - getDisplayMedia のビデオトラックを stop() ではなく enabled=false で無効化し、画面共有セッションの連鎖終了を防止
+
 ## 0.5.2
 
 ### Patch Changes

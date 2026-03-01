@@ -10,7 +10,7 @@
     "dev": "electrobun dev --watch",
     "dev:hmr": "concurrently \"bun run hmr\" \"bun run start\"",
     "hmr": "vite --port 5173",
-    "build": "vite build && electrobun build",
+    "build": "vite build && electrobun build --env=stable",
     "build:vite": "vite build",
     "typecheck": "bash -c 'tsc --noEmit --skipLibCheck 2>&1 | grep -v node_modules | grep error && exit 1 || exit 0'",
     "lint": "oxlint",

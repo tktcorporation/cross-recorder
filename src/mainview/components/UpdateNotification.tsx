@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { rpc } from "../rpc.js";
 import { useUpdateStore } from "../stores/updateStore.js";
 
@@ -10,6 +10,8 @@ export function UpdateNotification() {
     currentVersion,
     setCurrentVersion,
   } = useUpdateStore();
+
+  const upToDateTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     rpc.request
@@ -25,6 +27,28 @@ export function UpdateNotification() {
     };
     window.addEventListener("update-status", handler);
     return () => window.removeEventListener("update-status", handler);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (upToDateTimerRef.current) clearTimeout(upToDateTimerRef.current);
+    };
+  }, []);
+
+  const handleCheckForUpdate = useCallback(async () => {
+    useUpdateStore.getState().setStatus("checking", "");
+    try {
+      const result = await rpc.request.checkForUpdate({});
+      if (!result.updateAvailable) {
+        useUpdateStore.getState().setStatus("up-to-date", "");
+        if (upToDateTimerRef.current) clearTimeout(upToDateTimerRef.current);
+        upToDateTimerRef.current = setTimeout(() => {
+          useUpdateStore.getState().reset();
+        }, 3000);
+      }
+    } catch (e) {
+      useUpdateStore.getState().setStatus("error", String(e));
+    }
   }, []);
 
   const handleDownload = useCallback(async () => {
@@ -55,10 +79,51 @@ export function UpdateNotification() {
     }
   }, []);
 
-  if (updateStatus === "idle" || updateStatus === "checking") {
+  if (updateStatus === "idle") {
     return currentVersion ? (
-      <span className="text-xs text-gray-500">v{currentVersion}</span>
+      <button
+        onClick={handleCheckForUpdate}
+        className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+        title="アップデートを確認"
+      >
+        v{currentVersion}
+      </button>
     ) : null;
+  }
+
+  if (updateStatus === "checking") {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-gray-400">
+        <svg
+          className="h-3 w-3 animate-spin"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
+        </svg>
+        確認中...
+      </span>
+    );
+  }
+
+  if (updateStatus === "up-to-date") {
+    return (
+      <span className="text-xs text-green-400">
+        最新版です (v{currentVersion})
+      </span>
+    );
   }
 
   if (updateStatus === "available") {

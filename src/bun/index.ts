@@ -1,6 +1,24 @@
-import { BrowserWindow } from "electrobun/bun";
+import { ApplicationMenu, BrowserWindow } from "electrobun/bun";
 import { rpc } from "./rpc.js";
 import * as UpdateService from "./services/UpdateService.js";
+
+ApplicationMenu.setApplicationMenu([
+  {
+    submenu: [{ label: "Quit Cross Recorder", role: "quit" }],
+  },
+  {
+    label: "Edit",
+    submenu: [
+      { role: "undo" },
+      { role: "redo" },
+      { type: "separator" },
+      { role: "cut" },
+      { role: "copy" },
+      { role: "paste" },
+      { role: "selectAll" },
+    ],
+  },
+]);
 
 new BrowserWindow({
   title: "Cross Recorder",

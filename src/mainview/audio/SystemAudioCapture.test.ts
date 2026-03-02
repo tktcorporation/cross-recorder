@@ -166,7 +166,7 @@ describe("SystemAudioCapture", () => {
     expect(audioTrack.stop).toHaveBeenCalled();
   });
 
-  it("throws when applyConstraints fails for all audio tracks", async () => {
+  it("continues recording even when applyConstraints fails (best-effort)", async () => {
     const mockTrack = {
       kind: "audio",
       stop: vi.fn(),
@@ -186,7 +186,10 @@ describe("SystemAudioCapture", () => {
     });
 
     const capture = new SystemAudioCapture();
-    await expect(capture.start()).rejects.toThrow();
+    // Should NOT throw — applyConstraints failure is best-effort
+    const stream = await capture.start();
+    expect(stream).toBe(mockStream);
+    expect(mockTrack.applyConstraints).toHaveBeenCalled();
   });
 
   it("stop() is safe to call when no stream exists", () => {

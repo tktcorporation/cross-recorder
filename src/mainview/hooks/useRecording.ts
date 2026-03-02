@@ -120,55 +120,45 @@ export function useRecording() {
   }
 
   // Handle side effects for state transitions
-  const handleStateTransition = useCallback(
-    (state: SessionState) => {
-      // Update both stores
-      setSessionState(state);
-      setRecordingState(selectRecordingState(state));
+  function handleStateTransition(state: SessionState) {
+    // Update both stores
+    setSessionState(state);
+    setRecordingState(selectRecordingState(state));
 
-      switch (state.type) {
-        case "acquiring":
-          handleAcquiring(state.requestedTracks);
-          break;
-        case "recording":
-          setCurrentSessionId(state.sessionId);
-          startStatusTimer();
-          break;
-        case "stopping":
-          handleStopping(state.sessionId);
-          break;
-        case "error":
-          setRecordingError(state.message);
-          cleanupResources();
-          break;
-        case "idle":
-          // If we were recording/stopping, this means we completed
-          cleanupResources();
-          break;
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      setSessionState,
-      setRecordingState,
-      setCurrentSessionId,
-      setRecordingError,
-      setMicAnalyser,
-      setSystemAnalyser,
-      updateStatus,
-      addRecording,
-      selectedMicId,
-      request,
-    ],
-  );
+    switch (state.type) {
+      case "acquiring":
+        handleAcquiring(state.requestedTracks);
+        break;
+      case "recording":
+        setCurrentSessionId(state.sessionId);
+        startStatusTimer();
+        break;
+      case "stopping":
+        handleStopping(state.sessionId);
+        break;
+      case "error":
+        setRecordingError(state.message);
+        cleanupResources();
+        break;
+      case "idle":
+        // If we were recording/stopping, this means we completed
+        cleanupResources();
+        break;
+    }
+  }
 
-  // Initialize RecordingSession
+  // Keep the handler in a ref so the session effect doesn't re-run
+  // when dependencies change (which would cancel any active recording).
+  const handleStateTransitionRef = useRef(handleStateTransition);
+  handleStateTransitionRef.current = handleStateTransition;
+
+  // Initialize RecordingSession — only once on mount
   useEffect(() => {
     const session = new RecordingSession();
     sessionRef.current = session;
 
     const unsub = session.on("stateChange", (state) => {
-      handleStateTransition(state);
+      handleStateTransitionRef.current(state);
     });
 
     return () => {
@@ -178,7 +168,8 @@ export function useRecording() {
       }
       managerRef.current?.cancel();
     };
-  }, [handleStateTransition]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Listen for status updates from bun process
   useEffect(() => {

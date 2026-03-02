@@ -1,12 +1,13 @@
 // src/mainview/audio/ChunkWriter.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ChunkWriter } from "./ChunkWriter.js";
-import type { TrackKind } from "@shared/types.js";
 
 describe("ChunkWriter", () => {
   let writer: ChunkWriter;
-  let mockSaveChunk: ReturnType<typeof vi.fn>;
-  let mockOnError: ReturnType<typeof vi.fn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockSaveChunk: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockOnError: any;
 
   beforeEach(() => {
     mockSaveChunk = vi.fn().mockResolvedValue({ success: true, bytesWritten: 1024 });
@@ -37,8 +38,8 @@ describe("ChunkWriter", () => {
     await writer.flush();
 
     expect(mockSaveChunk).toHaveBeenCalledTimes(2);
-    expect(mockSaveChunk.mock.calls[0][0].chunkIndex).toBe(0);
-    expect(mockSaveChunk.mock.calls[1][0].chunkIndex).toBe(1);
+    expect(mockSaveChunk.mock.calls[0]![0].chunkIndex).toBe(0);
+    expect(mockSaveChunk.mock.calls[1]![0].chunkIndex).toBe(1);
   });
 
   it("tracks separate chunkIndex per trackKind", async () => {
@@ -53,8 +54,8 @@ describe("ChunkWriter", () => {
     const sysCall = mockSaveChunk.mock.calls.find(
       (c: any[]) => c[0].trackKind === "system",
     );
-    expect(micCall[0].chunkIndex).toBe(0);
-    expect(sysCall[0].chunkIndex).toBe(0);
+    expect(micCall![0].chunkIndex).toBe(0);
+    expect(sysCall![0].chunkIndex).toBe(0);
   });
 
   it("calls onError when saveChunk returns success: false", async () => {

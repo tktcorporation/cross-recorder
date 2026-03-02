@@ -1,7 +1,7 @@
 // src/mainview/audio/RecordingSession.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { RecordingSession } from "./RecordingSession.js";
-import type { SessionState, SessionEvent } from "./types.js";
+import type { SessionState } from "./types.js";
 
 describe("RecordingSession", () => {
   let session: RecordingSession;

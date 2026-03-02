@@ -11,13 +11,26 @@ export class RecordingPipeline {
   private audioContext: AudioContext | null = null;
   private tracks = new Map<TrackKind, TrackState>();
 
+  onWorkletError?: (trackKind: TrackKind) => void;
+
   async initialize(sampleRate: number): Promise<void> {
     this.audioContext = new AudioContext({ sampleRate });
     // The AudioContext may be created in "suspended" state when the user
     // gesture chain is broken by an async gap (e.g. dynamic import).
     // Explicitly resume to ensure audio processing works.
     if (this.audioContext.state === "suspended") {
-      await this.audioContext.resume();
+      try {
+        await this.audioContext.resume();
+      } catch (e) {
+        throw new Error(
+          `AudioContext の起動に失敗しました: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    }
+    if (this.audioContext.state !== "running") {
+      throw new Error(
+        `AudioContext が running 状態になりませんでした: ${this.audioContext.state}`,
+      );
     }
     const workletUrl = new URL(
       "./worklets/pcm-recorder.worklet.js",
@@ -54,6 +67,11 @@ export class RecordingPipeline {
     worklet.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
       onPcmData(event.data);
     };
+
+    worklet.addEventListener("processorerror", (event) => {
+      console.error(`[RecordingPipeline] Worklet error for ${trackKind}:`, event);
+      this.onWorkletError?.(trackKind);
+    });
 
     // Silent gain to keep the audio graph active without audible output
     const silentGain = this.audioContext.createGain();

@@ -71,6 +71,10 @@ export class ChunkWriter {
     return this.totalBytes;
   }
 
+  getChunkCounts(): Record<string, number> {
+    return Object.fromEntries(this.chunkIndices);
+  }
+
   reset(): void {
     this.queue = [];
     this.flushing = false;

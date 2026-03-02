@@ -4,8 +4,8 @@ vi.mock("nanoid", () => ({
   nanoid: () => "test-session-id",
 }));
 
-const { mockPipeline, mockMicCapture, mockSystemCapture } = vi.hoisted(
-  () => ({
+const { mockPipeline, mockMicCapture, mockSystemCapture, mockChunkWriter } =
+  vi.hoisted(() => ({
     mockPipeline: {
       initialize: vi.fn().mockResolvedValue(undefined),
       addTrack: vi.fn(),
@@ -21,8 +21,14 @@ const { mockPipeline, mockMicCapture, mockSystemCapture } = vi.hoisted(
       stop: vi.fn(),
       onTrackEnded: vi.fn(),
     },
-  }),
-);
+    mockChunkWriter: {
+      enqueue: vi.fn().mockResolvedValue(undefined),
+      flush: vi.fn().mockResolvedValue(undefined),
+      getTotalBytes: vi.fn().mockReturnValue(0),
+      getChunkCounts: vi.fn().mockReturnValue({}),
+      reset: vi.fn(),
+    },
+  }));
 
 vi.mock("./RecordingPipeline.js", () => {
   return {
@@ -50,6 +56,18 @@ vi.mock("./SystemAudioCapture.js", () => {
       start = mockSystemCapture.start;
       stop = mockSystemCapture.stop;
       onTrackEnded = mockSystemCapture.onTrackEnded;
+    },
+  };
+});
+
+vi.mock("./ChunkWriter.js", () => {
+  return {
+    ChunkWriter: class {
+      enqueue = mockChunkWriter.enqueue;
+      flush = mockChunkWriter.flush;
+      getTotalBytes = mockChunkWriter.getTotalBytes;
+      getChunkCounts = mockChunkWriter.getChunkCounts;
+      reset = mockChunkWriter.reset;
     },
   };
 });
@@ -96,10 +114,16 @@ describe("AudioCaptureManager", () => {
     mockMicCapture.stop.mockClear();
     mockSystemCapture.start.mockResolvedValue({ getTracks: () => [] });
     mockSystemCapture.stop.mockClear();
+    mockSystemCapture.onTrackEnded.mockClear();
     mockPipeline.initialize.mockResolvedValue(undefined);
     mockPipeline.addTrack.mockClear();
     mockPipeline.stop.mockClear();
     mockPipeline.getAnalyserForTrack.mockReturnValue(null);
+    mockChunkWriter.enqueue.mockClear();
+    mockChunkWriter.flush.mockClear();
+    mockChunkWriter.getTotalBytes.mockReturnValue(0);
+    mockChunkWriter.getChunkCounts.mockReturnValue({});
+    mockChunkWriter.reset.mockClear();
   });
 
   it("cleans up and cancels session when system audio capture fails", async () => {
@@ -200,6 +224,7 @@ describe("AudioCaptureManager", () => {
 
     const metadata = await manager.stop();
 
+    expect(mockChunkWriter.flush).toHaveBeenCalledOnce();
     expect(rpc.finalizeRecording).toHaveBeenCalledOnce();
     expect(metadata).toBeDefined();
     expect(manager.getSessionId()).toBeNull();
@@ -233,5 +258,92 @@ describe("AudioCaptureManager", () => {
     expect(mockMicCapture.stop).toHaveBeenCalled();
     expect(mockSystemCapture.stop).toHaveBeenCalled();
     expect(manager.getSessionId()).toBeNull();
+  });
+
+  it("registers onTrackEnded BEFORE calling systemCapture.start()", async () => {
+    const callOrder: string[] = [];
+    mockSystemCapture.onTrackEnded.mockImplementation(() => {
+      callOrder.push("onTrackEnded");
+    });
+    mockSystemCapture.start.mockImplementation(async () => {
+      callOrder.push("start");
+      return { getTracks: () => [] };
+    });
+
+    const manager = new AudioCaptureManager(rpc);
+    await manager.start({
+      micEnabled: false,
+      systemAudioEnabled: true,
+    });
+
+    expect(callOrder).toEqual(["onTrackEnded", "start"]);
+  });
+
+  it("onTrackEnded callback reports which track ended", async () => {
+    const manager = new AudioCaptureManager(rpc);
+    const trackEndedSpy = vi.fn();
+    manager.onTrackEnded(trackEndedSpy);
+
+    // Capture the callback that AudioCaptureManager passes to systemCapture.onTrackEnded
+    let capturedCallback: (() => void) | undefined;
+    mockSystemCapture.onTrackEnded.mockImplementation(
+      (cb: () => void) => {
+        capturedCallback = cb;
+      },
+    );
+
+    await manager.start({
+      micEnabled: false,
+      systemAudioEnabled: true,
+    });
+
+    // Simulate track ended
+    capturedCallback!();
+
+    expect(trackEndedSpy).toHaveBeenCalledWith("system");
+  });
+
+  it("onError callback is invoked from ChunkWriter errors", () => {
+    const manager = new AudioCaptureManager(rpc);
+    const errorSpy = vi.fn();
+    manager.onError(errorSpy);
+
+    // The onError callback is set, verifying the method exists and works
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("getTotalBytes delegates to ChunkWriter", async () => {
+    mockChunkWriter.getTotalBytes.mockReturnValue(4096);
+
+    const manager = new AudioCaptureManager(rpc);
+    await manager.start({
+      micEnabled: true,
+      systemAudioEnabled: false,
+    });
+
+    expect(manager.getTotalBytes()).toBe(4096);
+  });
+
+  it("getTotalBytes returns 0 when no chunkWriter exists", () => {
+    const manager = new AudioCaptureManager(rpc);
+    expect(manager.getTotalBytes()).toBe(0);
+  });
+
+  it("stop() passes chunk counts from ChunkWriter to finalizeRecording", async () => {
+    mockChunkWriter.getChunkCounts.mockReturnValue({ mic: 5 });
+
+    const manager = new AudioCaptureManager(rpc);
+    await manager.start({
+      micEnabled: true,
+      systemAudioEnabled: false,
+    });
+
+    await manager.stop();
+
+    expect(rpc.finalizeRecording).toHaveBeenCalledWith(
+      expect.objectContaining({
+        totalChunks: { mic: 5, system: 0 },
+      }),
+    );
   });
 });

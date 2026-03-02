@@ -85,17 +85,42 @@ jobs:
 
       - name: List build output
         shell: bash
-        run: find build -maxdepth 4 -type d | head -50
+        run: |
+          echo "=== build/ directory ==="
+          find build -maxdepth 4 | head -100
+          echo ""
+          echo "=== artifacts/ directory (Electrobun auto-generated) ==="
+          if [ -d "artifacts" ]; then
+            find artifacts -type f | sort
+          else
+            echo "No artifacts/ directory found"
+          fi
+          echo ""
+          echo "=== version.json files ==="
+          find . -name "version.json" -not -path "*/node_modules/*" 2>/dev/null || echo "No version.json found"
+
+      - name: Collect Electrobun artifacts
+        shell: bash
+        run: |
+          # Check if Electrobun generated an artifacts/ directory
+          if [ -d "artifacts" ]; then
+            echo "Found Electrobun auto-generated artifacts/"
+            find artifacts -type f | sort
+            cp artifacts/* "$GITHUB_WORKSPACE/" 2>/dev/null || true
+            echo "ELECTROBUN_ARTIFACTS=true" >> "$GITHUB_ENV"
+          else
+            echo "No Electrobun artifacts/ directory found, will generate manually"
+            echo "ELECTROBUN_ARTIFACTS=false" >> "$GITHUB_ENV"
+          fi
 
       - name: Package artifacts (macOS)
         if: matrix.platform == 'macos'
         shell: bash
         run: |
-          # Electrobun outputs: build/dev-macos-arm64/Cross Recorder-dev.app
           APP_BUNDLE=$(find build -name "*.app" -type d | head -1)
           if [ -z "$APP_BUNDLE" ]; then
-            echo "No .app bundle found in build/"
-            find build -maxdepth 4 -type d
+            echo "::error::No .app bundle found in build/"
+            find build -maxdepth 4
             exit 1
           fi
           echo "Found app bundle: $APP_BUNDLE"
@@ -106,7 +131,6 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          # Electrobun outputs: build/dev-win-x64/CrossRecorder-dev/
           $buildDir = Get-ChildItem -Path build -Recurse -Directory | Where-Object { $_.Name -match "^Cross\s?Recorder" } | Select-Object -First 1
           if (-not $buildDir) {
             Write-Error "Build directory not found"
@@ -117,37 +141,44 @@ jobs:
           Compress-Archive -Path $buildDir.FullName -DestinationPath "CrossRecorder-${{ needs.changesets.outputs.version }}-windows-x64.zip"
 
       - name: Generate updater artifacts (macOS)
-        if: matrix.platform == 'macos'
+        if: matrix.platform == 'macos' && env.ELECTROBUN_ARTIFACTS != 'true'
         shell: bash
         run: |
-          # Find the build output directory (e.g., build/stable-macos-arm64/)
+          # Find the build output directory
           BUILD_DIR=$(find build -maxdepth 1 -type d -name "*-macos-*" | head -1)
           if [ -z "$BUILD_DIR" ]; then
-            echo "Warning: Could not find build dir for updater artifacts"
-            exit 0
+            echo "::error::Could not find macOS build dir for updater artifacts"
+            find build -maxdepth 2 -type d
+            exit 1
+          fi
+          echo "Build dir: $BUILD_DIR"
+
+          # Search for version.json broadly
+          VERSION_JSON=$(find "$BUILD_DIR" -name "version.json" | head -1)
+          if [ -z "$VERSION_JSON" ]; then
+            # Also search in the entire build/ directory
+            VERSION_JSON=$(find build -name "version.json" | head -1)
           fi
 
-          # Read hash from version.json
-          VERSION_JSON="$BUILD_DIR/Resources/version.json"
-          if [ ! -f "$VERSION_JSON" ]; then
-            # Try inside .app bundle
-            VERSION_JSON=$(find "$BUILD_DIR" -path "*/Resources/version.json" | head -1)
-          fi
-
-          if [ -f "$VERSION_JSON" ]; then
-            HASH=$(cat "$VERSION_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
-            CHANNEL=$(cat "$VERSION_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('channel','stable'))")
-            echo "Found hash=$HASH channel=$CHANNEL"
+          if [ -n "$VERSION_JSON" ] && [ -f "$VERSION_JSON" ]; then
+            echo "Found version.json: $VERSION_JSON"
+            cat "$VERSION_JSON"
+            HASH=$(python3 -c "import sys,json; print(json.load(open('$VERSION_JSON'))['hash'])")
+            CHANNEL=$(python3 -c "import sys,json; print(json.load(open('$VERSION_JSON')).get('channel','stable'))")
+            echo "hash=$HASH channel=$CHANNEL"
           else
-            echo "Warning: version.json not found, skipping updater artifacts"
-            exit 0
+            echo "::warning::version.json not found, using fallback values"
+            echo "Searched in: $BUILD_DIR and build/"
+            find build -type f -name "*.json" || true
+            # Use stable channel and empty hash as fallback
+            HASH=""
+            CHANNEL="stable"
           fi
 
           PREFIX="${CHANNEL}-macos-arm64"
-          BASE_URL="https://github.com/tktcorporation/cross-recorder/releases/latest/download"
 
           # Create update.json
-          cat > "$GITHUB_WORKSPACE/${PREFIX}-update.json" <<EOJSON
+          cat > "$GITHUB_WORKSPACE/${PREFIX}-update.json" <<EOF
           {
             "version": "${{ needs.changesets.outputs.version }}",
             "hash": "$HASH",
@@ -155,7 +186,9 @@ jobs:
             "updateReady": false,
             "error": ""
           }
-          EOJSON
+          EOF
+          echo "Generated ${PREFIX}-update.json:"
+          cat "$GITHUB_WORKSPACE/${PREFIX}-update.json"
 
           # Create tar.zst bundle for updater
           APP_BUNDLE=$(find "$BUILD_DIR" -name "*.app" -type d | head -1)
@@ -163,39 +196,50 @@ jobs:
             cd "$(dirname "$APP_BUNDLE")"
             tar -cf "$GITHUB_WORKSPACE/app-bundle.tar" "$(basename "$APP_BUNDLE")"
             cd "$GITHUB_WORKSPACE"
-            if command -v zstd &> /dev/null; then
-              zstd -19 --rm -o "${PREFIX}-Cross Recorder.app.tar.zst" app-bundle.tar
-            else
-              # Fallback: install zstd
+            if ! command -v zstd &> /dev/null; then
               brew install zstd 2>/dev/null || sudo apt-get install -y zstd 2>/dev/null || true
-              zstd -19 --rm -o "${PREFIX}-Cross Recorder.app.tar.zst" app-bundle.tar
             fi
+            zstd -19 --rm -o "${PREFIX}-Cross Recorder.app.tar.zst" app-bundle.tar
+            echo "Generated ${PREFIX}-Cross Recorder.app.tar.zst"
+          else
+            echo "::warning::No .app bundle found for tar.zst generation"
           fi
 
       - name: Generate updater artifacts (Windows)
-        if: matrix.platform == 'windows'
+        if: matrix.platform == 'windows' && env.ELECTROBUN_ARTIFACTS != 'true'
         shell: bash
         run: |
           BUILD_DIR=$(find build -maxdepth 1 -type d -name "*-win-*" | head -1)
           if [ -z "$BUILD_DIR" ]; then
-            echo "Warning: Could not find build dir for updater artifacts"
-            exit 0
+            echo "::error::Could not find Windows build dir for updater artifacts"
+            find build -maxdepth 2 -type d
+            exit 1
+          fi
+          echo "Build dir: $BUILD_DIR"
+
+          # Search for version.json broadly
+          VERSION_JSON=$(find "$BUILD_DIR" -name "version.json" | head -1)
+          if [ -z "$VERSION_JSON" ]; then
+            VERSION_JSON=$(find build -name "version.json" | head -1)
           fi
 
-          VERSION_JSON=$(find "$BUILD_DIR" -name "version.json" -path "*/Resources/*" | head -1)
-          if [ -f "$VERSION_JSON" ]; then
-            HASH=$(cat "$VERSION_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
-            CHANNEL=$(cat "$VERSION_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('channel','stable'))")
-            echo "Found hash=$HASH channel=$CHANNEL"
+          if [ -n "$VERSION_JSON" ] && [ -f "$VERSION_JSON" ]; then
+            echo "Found version.json: $VERSION_JSON"
+            cat "$VERSION_JSON"
+            HASH=$(python3 -c "import sys,json; print(json.load(open('$VERSION_JSON'))['hash'])")
+            CHANNEL=$(python3 -c "import sys,json; print(json.load(open('$VERSION_JSON')).get('channel','stable'))")
+            echo "hash=$HASH channel=$CHANNEL"
           else
-            echo "Warning: version.json not found, skipping updater artifacts"
-            exit 0
+            echo "::warning::version.json not found, using fallback values"
+            find build -type f -name "*.json" || true
+            HASH=""
+            CHANNEL="stable"
           fi
 
           PREFIX="${CHANNEL}-win-x64"
 
           # Create update.json
-          cat > "${PREFIX}-update.json" <<EOJSON
+          cat > "${PREFIX}-update.json" <<EOF
           {
             "version": "${{ needs.changesets.outputs.version }}",
             "hash": "$HASH",
@@ -203,7 +247,9 @@ jobs:
             "updateReady": false,
             "error": ""
           }
-          EOJSON
+          EOF
+          echo "Generated ${PREFIX}-update.json:"
+          cat "${PREFIX}-update.json"
 
           # Create tar.zst bundle for updater
           APP_DIR=$(find "$BUILD_DIR" -maxdepth 1 -type d -name "Cross*Recorder*" | head -1)
@@ -213,12 +259,19 @@ jobs:
           cd "$(dirname "$APP_DIR")"
           tar --force-local -cf "$GITHUB_WORKSPACE/app-bundle.tar" "$(basename "$APP_DIR")"
           cd "$GITHUB_WORKSPACE"
-          if command -v zstd &> /dev/null; then
-            zstd -19 --rm -o "${PREFIX}-CrossRecorder.tar.zst" app-bundle.tar
-          else
+          if ! command -v zstd &> /dev/null; then
             choco install zstandard -y 2>/dev/null || true
-            zstd -19 --rm -o "${PREFIX}-CrossRecorder.tar.zst" app-bundle.tar
           fi
+          zstd -19 --rm -o "${PREFIX}-CrossRecorder.tar.zst" app-bundle.tar
+          echo "Generated ${PREFIX}-CrossRecorder.tar.zst"
+
+      - name: List generated files
+        shell: bash
+        run: |
+          echo "=== Generated updater files ==="
+          ls -la *-update.json 2>/dev/null || echo "No update.json files"
+          ls -la *.tar.zst 2>/dev/null || echo "No tar.zst files"
+          ls -la CrossRecorder-* 2>/dev/null || echo "No CrossRecorder packages"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

@@ -73,13 +73,21 @@ export function checkForUpdate() {
   return Effect.tryPromise({
     try: async () => {
       const result = await Updater.checkForUpdate();
+      console.log("[UpdateService] checkForUpdate result:", {
+        version: result.version,
+        updateAvailable: result.updateAvailable,
+        error: result.error,
+      });
       return {
         version: result.version || "",
         updateAvailable: result.updateAvailable || false,
         error: result.error || "",
       };
     },
-    catch: (e) => new UpdateCheckError({ reason: String(e) }),
+    catch: (e) => {
+      console.error("[UpdateService] checkForUpdate failed:", e);
+      return new UpdateCheckError({ reason: String(e) });
+    },
   });
 }
 

@@ -39,13 +39,16 @@ export function UpdateNotification() {
     useUpdateStore.getState().setStatus("checking", "");
     try {
       const result = await rpc.request.checkForUpdate({});
-      if (!result.updateAvailable) {
+      if (result.error) {
+        useUpdateStore.getState().setStatus("error", result.error);
+      } else if (!result.updateAvailable) {
         useUpdateStore.getState().setStatus("up-to-date", "");
         if (upToDateTimerRef.current) clearTimeout(upToDateTimerRef.current);
         upToDateTimerRef.current = setTimeout(() => {
           useUpdateStore.getState().reset();
         }, 3000);
       }
+      // updateAvailable === true is handled by onStatusChange callback
     } catch (e) {
       useUpdateStore.getState().setStatus("error", String(e));
     }
@@ -71,13 +74,8 @@ export function UpdateNotification() {
   }, []);
 
   const handleRetry = useCallback(async () => {
-    useUpdateStore.getState().reset();
-    try {
-      await rpc.request.checkForUpdate({});
-    } catch (e) {
-      useUpdateStore.getState().setStatus("error", String(e));
-    }
-  }, []);
+    await handleCheckForUpdate();
+  }, [handleCheckForUpdate]);
 
   if (updateStatus === "idle") {
     return currentVersion ? (

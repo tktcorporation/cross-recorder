@@ -1,5 +1,20 @@
 # cross-recorder
 
+## 0.7.0
+
+### Minor Changes
+
+- [#21](https://github.com/tktcorporation/cross-recorder/pull/21) [`c49167d`](https://github.com/tktcorporation/cross-recorder/commit/c49167d35c3e7c8bf07ddedbc3876d7c69ebf1f9) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 録音システムのステートマシン再設計: 状態管理をステートマシンで再構築し、エラー伝播とリソースクリーンアップを統一
+
+### Patch Changes
+
+- [#21](https://github.com/tktcorporation/cross-recorder/pull/21) [`09495b4`](https://github.com/tktcorporation/cross-recorder/commit/09495b4e512705f17f135aa1baed992734f9ae03) Thanks [@tktcorporation](https://github.com/tktcorporation)! - Fix system audio recording stopping immediately and Command+Q not working
+
+  - Simplify getDisplayMedia audio constraints to avoid OverconstrainedError in CEF
+  - Add track ended event listeners to detect when display media session terminates
+  - Add error display in RecordPanel so users can see why recording failed
+  - Add explicit accelerator keys for Quit and Edit menu items
+
 ## 0.6.0
 
 ### Minor Changes

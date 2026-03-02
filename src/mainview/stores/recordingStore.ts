@@ -4,10 +4,12 @@ import type {
   RecordingMetadata,
   RecordingState,
 } from "@shared/types.js";
+import type { SessionState } from "../audio/types.js";
 
 type RecordingStore = {
   // State
   recordingState: RecordingState;
+  sessionState: SessionState;
   selectedMicId: string | null;
   micEnabled: boolean;
   systemAudioEnabled: boolean;
@@ -19,9 +21,11 @@ type RecordingStore = {
   playingRecordingId: string | null;
   micAnalyser: AnalyserNode | null;
   systemAnalyser: AnalyserNode | null;
+  recordingError: string | null;
 
   // Actions
   setRecordingState: (state: RecordingState) => void;
+  setSessionState: (state: SessionState) => void;
   setSelectedMicId: (id: string | null) => void;
   setMicEnabled: (enabled: boolean) => void;
   setSystemAudioEnabled: (enabled: boolean) => void;
@@ -34,11 +38,13 @@ type RecordingStore = {
   setPlayingRecordingId: (id: string | null) => void;
   setMicAnalyser: (analyser: AnalyserNode | null) => void;
   setSystemAnalyser: (analyser: AnalyserNode | null) => void;
+  setRecordingError: (error: string | null) => void;
   reset: () => void;
 };
 
 const initialState = {
   recordingState: "idle" as RecordingState,
+  sessionState: { type: "idle" } as SessionState,
   selectedMicId: null,
   micEnabled: true,
   systemAudioEnabled: false,
@@ -50,12 +56,29 @@ const initialState = {
   playingRecordingId: null,
   micAnalyser: null as AnalyserNode | null,
   systemAnalyser: null as AnalyserNode | null,
+  recordingError: null as string | null,
 };
+
+/** Derive the legacy RecordingState from a SessionState */
+export function selectRecordingState(state: SessionState): RecordingState {
+  switch (state.type) {
+    case "idle":
+    case "error":
+      return "idle";
+    case "acquiring":
+    case "recording":
+    case "degraded":
+      return "recording";
+    case "stopping":
+      return "stopping";
+  }
+}
 
 export const useRecordingStore = create<RecordingStore>((set) => ({
   ...initialState,
 
   setRecordingState: (state) => set({ recordingState: state }),
+  setSessionState: (state) => set({ sessionState: state }),
   setSelectedMicId: (id) => set({ selectedMicId: id }),
   setMicEnabled: (enabled) => set({ micEnabled: enabled }),
   setSystemAudioEnabled: (enabled) => set({ systemAudioEnabled: enabled }),
@@ -71,5 +94,6 @@ export const useRecordingStore = create<RecordingStore>((set) => ({
   setPlayingRecordingId: (id) => set({ playingRecordingId: id }),
   setMicAnalyser: (analyser) => set({ micAnalyser: analyser }),
   setSystemAnalyser: (analyser) => set({ systemAnalyser: analyser }),
+  setRecordingError: (error) => set({ recordingError: error }),
   reset: () => set(initialState),
 }));

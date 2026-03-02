@@ -1,14 +1,13 @@
-import { DEFAULT_SAMPLE_RATE } from "@shared/constants.js";
-
 export class SystemAudioCapture {
   private stream: MediaStream | null = null;
+  private onTrackEndedCallback: (() => void) | null = null;
+  private boundTrackEndedHandler: (() => void) | null = null;
 
   async start(): Promise<MediaStream> {
+    // Use audio: true to avoid OverconstrainedError in CEF.
+    // Specific constraints (echoCancellation etc.) are applied after acquisition.
     this.stream = await navigator.mediaDevices.getDisplayMedia({
-      audio: {
-        channelCount: 2,
-        sampleRate: DEFAULT_SAMPLE_RATE,
-      } as MediaTrackConstraints,
+      audio: true,
       video: true,
       systemAudio: "include",
     } as DisplayMediaStreamOptions);
@@ -37,15 +36,39 @@ export class SystemAudioCapture {
       });
     }
 
+    // Listen for track ended events (e.g. display session terminated by OS)
+    this.boundTrackEndedHandler = () => {
+      this.onTrackEndedCallback?.();
+    };
+    for (const track of this.stream.getAudioTracks()) {
+      track.addEventListener("ended", this.boundTrackEndedHandler);
+    }
+    // Video track ending also terminates the display session
+    for (const track of this.stream.getVideoTracks()) {
+      track.addEventListener("ended", this.boundTrackEndedHandler);
+    }
+
     return this.stream;
+  }
+
+  onTrackEnded(callback: () => void): void {
+    this.onTrackEndedCallback = callback;
   }
 
   stop(): void {
     if (this.stream) {
+      // Remove event listeners before stopping
+      if (this.boundTrackEndedHandler) {
+        for (const track of this.stream.getTracks()) {
+          track.removeEventListener("ended", this.boundTrackEndedHandler);
+        }
+        this.boundTrackEndedHandler = null;
+      }
       for (const track of this.stream.getTracks()) {
         track.stop();
       }
       this.stream = null;
     }
+    this.onTrackEndedCallback = null;
   }
 }

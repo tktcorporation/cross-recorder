@@ -25,6 +25,8 @@ export function RecordPanel() {
   const fileSizeBytes = useRecordingStore((s) => s.fileSizeBytes);
   const micEnabled = useRecordingStore((s) => s.micEnabled);
   const systemAudioEnabled = useRecordingStore((s) => s.systemAudioEnabled);
+  const recordingError = useRecordingStore((s) => s.recordingError);
+  const setRecordingError = useRecordingStore((s) => s.setRecordingError);
 
   const canRecord = micEnabled || systemAudioEnabled;
 
@@ -105,6 +107,20 @@ export function RecordPanel() {
         <p className="mt-3 text-xs text-gray-500">
           Enable at least one audio source
         </p>
+      )}
+
+      {/* Error message */}
+      {recordingError && (
+        <div className="mt-3 flex items-start gap-2 rounded bg-red-900/50 px-3 py-2 text-xs text-red-300">
+          <span className="flex-1">{recordingError}</span>
+          <button
+            type="button"
+            onClick={() => setRecordingError(null)}
+            className="shrink-0 text-red-400 hover:text-red-200"
+          >
+            {"\u2715"}
+          </button>
+        </div>
       )}
     </div>
   );

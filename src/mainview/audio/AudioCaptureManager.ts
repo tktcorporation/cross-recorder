@@ -4,6 +4,7 @@ import { DEFAULT_SAMPLE_RATE, DEFAULT_BIT_DEPTH } from "@shared/constants.js";
 import { MicrophoneCapture } from "./MicrophoneCapture.js";
 import { SystemAudioCapture } from "./SystemAudioCapture.js";
 import { RecordingPipeline } from "./RecordingPipeline.js";
+import { ChunkWriter } from "./ChunkWriter.js";
 
 import type { RecordingConfig } from "@shared/types.js";
 
@@ -29,30 +30,30 @@ type RpcRequest = {
   }) => Promise<{ success: boolean }>;
 };
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]!);
-  }
-  return btoa(binary);
-}
-
 export class AudioCaptureManager {
   private pipeline: RecordingPipeline;
   private micCapture: MicrophoneCapture;
   private systemCapture: SystemAudioCapture;
   private sessionId: string | null = null;
-  private chunkIndex: Record<TrackKind, number> = { mic: 0, system: 0 };
+  private chunkWriter: ChunkWriter | null = null;
   private startTime = 0;
-  private totalBytes = 0;
   private currentConfig: RecordingConfig | null = null;
   private activeTracks: Array<{ trackKind: TrackKind; channels: number }> = [];
+  private onTrackEndedCallback: ((trackKind: TrackKind) => void) | null = null;
+  private onErrorCallback: ((reason: string) => void) | null = null;
 
   constructor(private rpcRequest: RpcRequest) {
     this.pipeline = new RecordingPipeline();
     this.micCapture = new MicrophoneCapture();
     this.systemCapture = new SystemAudioCapture();
+  }
+
+  onTrackEnded(callback: (trackKind: TrackKind) => void): void {
+    this.onTrackEndedCallback = callback;
+  }
+
+  onError(callback: (reason: string) => void): void {
+    this.onErrorCallback = callback;
   }
 
   async start(config: {
@@ -61,10 +62,13 @@ export class AudioCaptureManager {
     systemAudioEnabled: boolean;
   }): Promise<string> {
     this.sessionId = nanoid();
-    this.chunkIndex = { mic: 0, system: 0 };
-    this.totalBytes = 0;
     this.startTime = performance.now();
     this.activeTracks = [];
+
+    this.chunkWriter = new ChunkWriter({
+      saveChunk: (data) => this.rpcRequest.saveRecordingChunk(data),
+      onError: (reason) => this.onErrorCallback?.(reason),
+    });
 
     await this.pipeline.initialize(DEFAULT_SAMPLE_RATE);
 
@@ -99,32 +103,21 @@ export class AudioCaptureManager {
       if (config.micEnabled) {
         const micStream = await this.micCapture.start(config.micDeviceId);
         this.pipeline.addTrack("mic", micStream, 1, (data: ArrayBuffer) => {
-          this.totalBytes += data.byteLength;
-          const base64 = arrayBufferToBase64(data);
-          this.rpcRequest.saveRecordingChunk({
-            sessionId: this.sessionId!,
-            trackKind: "mic",
-            chunkIndex: this.chunkIndex.mic++,
-            pcmData: base64,
-          });
+          this.chunkWriter?.enqueue(this.sessionId!, "mic", data);
         });
       }
 
       if (config.systemAudioEnabled) {
+        this.systemCapture.onTrackEnded(() => {
+          this.onTrackEndedCallback?.("system");
+        });
         const systemStream = await this.systemCapture.start();
         this.pipeline.addTrack(
           "system",
           systemStream,
           2,
           (data: ArrayBuffer) => {
-            this.totalBytes += data.byteLength;
-            const base64 = arrayBufferToBase64(data);
-            this.rpcRequest.saveRecordingChunk({
-              sessionId: this.sessionId!,
-              trackKind: "system",
-              chunkIndex: this.chunkIndex.system++,
-              pcmData: base64,
-            });
+            this.chunkWriter?.enqueue(this.sessionId!, "system", data);
           },
         );
       }
@@ -133,6 +126,7 @@ export class AudioCaptureManager {
       this.pipeline.stop();
       this.micCapture.stop();
       this.systemCapture.stop();
+      this.chunkWriter = null;
       const sid = this.sessionId;
       this.sessionId = null;
       await this.rpcRequest.cancelRecording({ sessionId: sid });
@@ -147,23 +141,7 @@ export class AudioCaptureManager {
       throw new Error("No active recording session");
     }
 
-    this.pipeline.stop();
-    this.micCapture.stop();
-    this.systemCapture.stop();
-
-    const totalChunks: Record<TrackKind, number> = { mic: 0, system: 0 };
-    for (const track of this.activeTracks) {
-      totalChunks[track.trackKind] = this.chunkIndex[track.trackKind];
-    }
-
-    const metadata = await this.rpcRequest.finalizeRecording({
-      sessionId: this.sessionId,
-      config: this.currentConfig!,
-      totalChunks,
-    });
-
-    this.sessionId = null;
-    return metadata;
+    return (await this.cleanup(true)) as RecordingMetadata;
   }
 
   async cancel(): Promise<void> {
@@ -171,14 +149,42 @@ export class AudioCaptureManager {
       return;
     }
 
+    await this.cleanup(false);
+  }
+
+  private async cleanup(
+    shouldFinalize: boolean,
+  ): Promise<RecordingMetadata | void> {
     this.pipeline.stop();
     this.micCapture.stop();
     this.systemCapture.stop();
 
+    if (shouldFinalize && this.sessionId) {
+      await this.chunkWriter?.flush();
+
+      const counts = this.chunkWriter?.getChunkCounts() ?? {};
+      const totalChunks: Record<TrackKind, number> = { mic: 0, system: 0 };
+      for (const track of this.activeTracks) {
+        totalChunks[track.trackKind] =
+          (counts[track.trackKind] as number) ?? 0;
+      }
+
+      const metadata = await this.rpcRequest.finalizeRecording({
+        sessionId: this.sessionId,
+        config: this.currentConfig!,
+        totalChunks,
+      });
+
+      this.chunkWriter = null;
+      this.sessionId = null;
+      return metadata;
+    }
+
     await this.rpcRequest.cancelRecording({
-      sessionId: this.sessionId,
+      sessionId: this.sessionId!,
     });
 
+    this.chunkWriter = null;
     this.sessionId = null;
   }
 
@@ -196,7 +202,7 @@ export class AudioCaptureManager {
   }
 
   getTotalBytes(): number {
-    return this.totalBytes;
+    return this.chunkWriter?.getTotalBytes() ?? 0;
   }
 
   getSessionId(): string | null {

@@ -29,15 +29,11 @@ export class SystemAudioCapture {
 
     // Disable audio processing to capture raw system audio
     for (const track of this.stream.getAudioTracks()) {
-      try {
-        await track.applyConstraints({
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        });
-      } catch {
-        // Constraint application may fail in some CEF environments; continue
-      }
+      await track.applyConstraints({
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      });
     }
 
     // Listen for track ended events (e.g. display session terminated by OS)

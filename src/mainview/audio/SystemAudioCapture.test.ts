@@ -134,6 +134,29 @@ describe("SystemAudioCapture", () => {
     expect(audioTrack.stop).toHaveBeenCalled();
   });
 
+  it("throws when applyConstraints fails for all audio tracks", async () => {
+    const mockTrack = {
+      kind: "audio",
+      stop: vi.fn(),
+      applyConstraints: vi.fn().mockRejectedValue(new Error("Constraint error")),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    const mockStream = {
+      getAudioTracks: () => [mockTrack],
+      getVideoTracks: () => [],
+      getTracks: () => [mockTrack],
+    };
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        getDisplayMedia: vi.fn().mockResolvedValue(mockStream),
+      },
+    });
+
+    const capture = new SystemAudioCapture();
+    await expect(capture.start()).rejects.toThrow();
+  });
+
   it("stop() is safe to call when no stream exists", () => {
     expect(() => capture.stop()).not.toThrow();
   });

@@ -11,11 +11,19 @@ import type {
 export type CrossRecorderRPC = {
   bun: RPCSchema<{
     requests: {
+      getPlatform: {
+        params: Record<string, never>;
+        response: {
+          platform: string;
+          nativeSystemAudioAvailable: boolean;
+        };
+      };
       startRecordingSession: {
         params: {
           sessionId: string;
           config: RecordingConfig;
           tracks: Array<{ trackKind: TrackKind; channels: number }>;
+          nativeSystemAudio?: boolean;
         };
         response: { success: boolean; filePath: string };
       };
@@ -94,6 +102,12 @@ export type CrossRecorderRPC = {
         status: UpdateStatus;
         message: string;
         progress?: number;
+      };
+      nativeSystemAudioLevel: {
+        level: number;
+      };
+      nativeSystemAudioError: {
+        reason: string;
       };
     };
   }>;

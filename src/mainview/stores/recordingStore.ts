@@ -22,6 +22,8 @@ type RecordingStore = {
   micAnalyser: AnalyserNode | null;
   systemAnalyser: AnalyserNode | null;
   recordingError: string | null;
+  nativeSystemAudioAvailable: boolean;
+  nativeSystemLevel: number;
 
   // Actions
   setRecordingState: (state: RecordingState) => void;
@@ -39,6 +41,8 @@ type RecordingStore = {
   setMicAnalyser: (analyser: AnalyserNode | null) => void;
   setSystemAnalyser: (analyser: AnalyserNode | null) => void;
   setRecordingError: (error: string | null) => void;
+  setNativeSystemAudioAvailable: (available: boolean) => void;
+  setNativeSystemLevel: (level: number) => void;
   reset: () => void;
 };
 
@@ -57,6 +61,8 @@ const initialState = {
   micAnalyser: null as AnalyserNode | null,
   systemAnalyser: null as AnalyserNode | null,
   recordingError: null as string | null,
+  nativeSystemAudioAvailable: false,
+  nativeSystemLevel: 0,
 };
 
 /** Derive the legacy RecordingState from a SessionState */
@@ -95,5 +101,8 @@ export const useRecordingStore = create<RecordingStore>((set) => ({
   setMicAnalyser: (analyser) => set({ micAnalyser: analyser }),
   setSystemAnalyser: (analyser) => set({ systemAnalyser: analyser }),
   setRecordingError: (error) => set({ recordingError: error }),
+  setNativeSystemAudioAvailable: (available) =>
+    set({ nativeSystemAudioAvailable: available }),
+  setNativeSystemLevel: (level) => set({ nativeSystemLevel: level }),
   reset: () => set(initialState),
 }));

@@ -27,6 +27,7 @@ export default {
     copy: {
       "dist/index.html": "views/mainview/index.html",
       "dist/assets": "views/mainview/assets",
+      "build/native": "native",
     },
     watchIgnore: ["dist/**"],
     mac: {

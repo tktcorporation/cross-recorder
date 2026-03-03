@@ -1,5 +1,11 @@
 # cross-recorder
 
+## 0.8.0
+
+### Minor Changes
+
+- [#26](https://github.com/tktcorporation/cross-recorder/pull/26) [`ac7ca57`](https://github.com/tktcorporation/cross-recorder/commit/ac7ca57f999775fc47cb3dd76b83f78cd510f67b) Thanks [@tktcorporation](https://github.com/tktcorporation)! - macOS でのシステム音声録音を ScreenCaptureKit ベースのネイティブキャプチャに変更。getDisplayMedia ではキャプチャできなかった macOS のシステム全体の音声を、OS の内部オーディオバスから直接取得できるようになった。
+
 ## 0.7.1
 
 ### Patch Changes

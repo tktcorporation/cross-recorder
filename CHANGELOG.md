@@ -1,5 +1,18 @@
 # cross-recorder
 
+## 0.7.1
+
+### Patch Changes
+
+- [#23](https://github.com/tktcorporation/cross-recorder/pull/23) [`0e229b4`](https://github.com/tktcorporation/cross-recorder/commit/0e229b48b157d4fe5a13148c1e4b5a23c881f7ef) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 手動アップデートチェック機能の修正: エラーハンドリング改善と CI ワークフローの updater artifacts 生成を堅牢化
+
+- [#25](https://github.com/tktcorporation/cross-recorder/pull/25) [`67e5d9f`](https://github.com/tktcorporation/cross-recorder/commit/67e5d9fe5a53cf339b534f5ab1a3f84041bbbf91) Thanks [@tktcorporation](https://github.com/tktcorporation)! - Fix system audio recording failures and unresponsive recording button.
+
+  - Allow retry from error state in state machine (button no longer freezes after error)
+  - Try audio-only getDisplayMedia before falling back to video (avoids NotReadableError)
+  - Restore try-catch around applyConstraints for CEF compatibility (regression from b702209)
+  - Fix useEffect dependency on handleStateTransition that could cancel active recordings on re-render
+
 ## 0.7.0
 
 ### Minor Changes

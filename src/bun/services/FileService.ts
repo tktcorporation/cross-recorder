@@ -112,6 +112,25 @@ export function startSession(
   });
 }
 
+/**
+ * Synchronously write a raw PCM buffer to a track's WAV file.
+ * Used by NativeSystemAudioCapture to bypass base64 encoding.
+ */
+export function writeChunkBufferSync(
+  sessionId: string,
+  trackKind: TrackKind,
+  buffer: Buffer,
+): void {
+  const session = sessions.get(sessionId);
+  if (!session) return;
+
+  const track = session.tracks.get(trackKind);
+  if (!track) return;
+
+  fs.writeSync(track.fd, buffer, 0, buffer.length);
+  track.bytesWritten += buffer.length;
+}
+
 export function writeChunk(sessionId: string, trackKind: TrackKind, pcmData: string) {
   return Effect.tryPromise({
     try: async () => {

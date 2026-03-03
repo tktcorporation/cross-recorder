@@ -27,6 +27,26 @@ export function useRecording() {
   const setMicAnalyser = useRecordingStore((s) => s.setMicAnalyser);
   const setSystemAnalyser = useRecordingStore((s) => s.setSystemAnalyser);
   const setRecordingError = useRecordingStore((s) => s.setRecordingError);
+  const nativeSystemAudioAvailable = useRecordingStore(
+    (s) => s.nativeSystemAudioAvailable,
+  );
+  const setNativeSystemAudioAvailable = useRecordingStore(
+    (s) => s.setNativeSystemAudioAvailable,
+  );
+  const setNativeSystemLevel = useRecordingStore(
+    (s) => s.setNativeSystemLevel,
+  );
+
+  // --- Platform detection (run once on mount) ---
+
+  useEffect(() => {
+    request.getPlatform({}).then((result) => {
+      setNativeSystemAudioAvailable(result.nativeSystemAudioAvailable);
+    }).catch(() => {
+      // Ignore — default to false (use getDisplayMedia fallback)
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- Helper functions (stable via refs) ---
 
@@ -55,6 +75,7 @@ export function useRecording() {
     setCurrentSessionId(null);
     setMicAnalyser(null);
     setSystemAnalyser(null);
+    setNativeSystemLevel(0);
     updateStatus(0, 0);
   }
 
@@ -81,13 +102,17 @@ export function useRecording() {
         sessionRef.current?.dispatch({ type: "ERROR", reason });
       });
 
+      const useNative =
+        nativeSystemAudioAvailable && requestedTracks.includes("system");
+
       const sessionId = await manager.start({
         micEnabled: requestedTracks.includes("mic"),
         systemAudioEnabled: requestedTracks.includes("system"),
         micDeviceId: selectedMicId ?? undefined,
+        nativeSystemAudio: useNative,
       });
 
-      // Expose AnalyserNodes
+      // Expose AnalyserNodes (system analyser is null when using native capture)
       setMicAnalyser(manager.getMicAnalyser());
       setSystemAnalyser(manager.getSystemAnalyser());
 
@@ -184,6 +209,29 @@ export function useRecording() {
     window.addEventListener("recording-status", onStatus);
     return () => window.removeEventListener("recording-status", onStatus);
   }, [updateStatus]);
+
+  // Listen for native system audio level updates from bun process
+  useEffect(() => {
+    const onLevel = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { level: number };
+      setNativeSystemLevel(detail.level);
+    };
+    window.addEventListener("native-system-audio-level", onLevel);
+    return () =>
+      window.removeEventListener("native-system-audio-level", onLevel);
+  }, [setNativeSystemLevel]);
+
+  // Listen for native system audio errors (subprocess crash etc.)
+  useEffect(() => {
+    const onError = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { reason: string };
+      console.warn("Native system audio error:", detail.reason);
+      sessionRef.current?.dispatch({ type: "TRACK_LOST", track: "system" });
+    };
+    window.addEventListener("native-system-audio-error", onError);
+    return () =>
+      window.removeEventListener("native-system-audio-error", onError);
+  }, []);
 
   const startRecording = useCallback(() => {
     const tracks: TrackKind[] = [];

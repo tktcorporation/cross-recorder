@@ -13,11 +13,17 @@ export function SourcePanel() {
   const recordingState = useRecordingStore((s) => s.recordingState);
   const micAnalyser = useRecordingStore((s) => s.micAnalyser);
   const systemAnalyser = useRecordingStore((s) => s.systemAnalyser);
+  const nativeSystemAudioAvailable = useRecordingStore(
+    (s) => s.nativeSystemAudioAvailable,
+  );
+  const nativeSystemLevel = useRecordingStore((s) => s.nativeSystemLevel);
 
   const { devices, selectedMicId, setSelectedMicId } = useAudioDevices();
 
   const micLevel = useAudioLevel(micAnalyser);
-  const systemLevel = useAudioLevel(systemAnalyser);
+  const webSystemLevel = useAudioLevel(systemAnalyser);
+  // Use native level when AnalyserNode is not available (macOS native capture)
+  const systemLevel = systemAnalyser ? webSystemLevel : nativeSystemLevel;
 
   const disabled = recordingState !== "idle";
   const isRecording = recordingState === "recording";
@@ -115,7 +121,9 @@ export function SourcePanel() {
         {systemAudioEnabled && (
           <>
             <p className="mt-2 text-xs text-gray-500">
-              Screen selection dialog will appear when recording starts
+              {nativeSystemAudioAvailable
+                ? "System audio will be captured directly via ScreenCaptureKit"
+                : "Screen selection dialog will appear when recording starts"}
             </p>
             {isRecording && (
               <div className="mt-2">

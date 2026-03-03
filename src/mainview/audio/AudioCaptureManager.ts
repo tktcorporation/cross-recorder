@@ -13,6 +13,7 @@ type RpcRequest = {
     sessionId: string;
     config: RecordingConfig;
     tracks: Array<{ trackKind: TrackKind; channels: number }>;
+    nativeSystemAudio?: boolean;
   }) => Promise<{ success: boolean; filePath: string }>;
   saveRecordingChunk: (params: {
     sessionId: string;
@@ -41,6 +42,7 @@ export class AudioCaptureManager {
   private activeTracks: Array<{ trackKind: TrackKind; channels: number }> = [];
   private onTrackEndedCallback: ((trackKind: TrackKind) => void) | null = null;
   private onErrorCallback: ((reason: string) => void) | null = null;
+  private usingNativeSystemAudio = false;
 
   constructor(private rpcRequest: RpcRequest) {
     this.pipeline = new RecordingPipeline();
@@ -60,10 +62,12 @@ export class AudioCaptureManager {
     micDeviceId?: string;
     micEnabled: boolean;
     systemAudioEnabled: boolean;
+    nativeSystemAudio?: boolean;
   }): Promise<string> {
     this.sessionId = nanoid();
     this.startTime = performance.now();
     this.activeTracks = [];
+    this.usingNativeSystemAudio = config.nativeSystemAudio ?? false;
 
     this.chunkWriter = new ChunkWriter({
       saveChunk: (data) => this.rpcRequest.saveRecordingChunk(data),
@@ -96,6 +100,7 @@ export class AudioCaptureManager {
       sessionId: this.sessionId,
       config: recordingConfig,
       tracks,
+      nativeSystemAudio: this.usingNativeSystemAudio,
     });
 
     try {
@@ -107,7 +112,10 @@ export class AudioCaptureManager {
         });
       }
 
-      if (config.systemAudioEnabled) {
+      // System audio: use getDisplayMedia only when NOT using native capture.
+      // On macOS, native capture via ScreenCaptureKit is handled by the Bun
+      // process — the frontend only needs to handle mic.
+      if (config.systemAudioEnabled && !this.usingNativeSystemAudio) {
         this.systemCapture.onTrackEnded(() => {
           this.onTrackEndedCallback?.("system");
         });
@@ -194,6 +202,10 @@ export class AudioCaptureManager {
 
   getSystemAnalyser(): AnalyserNode | null {
     return this.pipeline.getAnalyserForTrack("system");
+  }
+
+  isUsingNativeSystemAudio(): boolean {
+    return this.usingNativeSystemAudio;
   }
 
   getElapsedMs(): number {

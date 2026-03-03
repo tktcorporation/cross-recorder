@@ -4,13 +4,10 @@ export class SystemAudioCapture {
   private boundTrackEndedHandler: (() => void) | null = null;
 
   async start(): Promise<MediaStream> {
-    // Use audio: true to avoid OverconstrainedError in CEF.
-    // Specific constraints (echoCancellation etc.) are applied after acquisition.
-    this.stream = await navigator.mediaDevices.getDisplayMedia({
-      audio: true,
-      video: true,
-      systemAudio: "include",
-    } as DisplayMediaStreamOptions);
+    // We only need audio, so try without video first to avoid
+    // "NotReadableError: Could not start video source" errors.
+    // Fall back to video: true for environments (e.g. CEF) that require it.
+    this.stream = await this.acquireDisplayMedia();
 
     // Disable video tracks — we only need audio, but stopping them
     // would terminate the display media session and kill audio tracks too.
@@ -27,13 +24,19 @@ export class SystemAudioCapture {
       );
     }
 
-    // Disable audio processing to capture raw system audio
+    // Disable audio processing to capture raw system audio.
+    // Best-effort: some environments (e.g. CEF) may not support these
+    // constraints, so we catch and ignore OverconstrainedError.
     for (const track of this.stream.getAudioTracks()) {
-      await track.applyConstraints({
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-      });
+      try {
+        await track.applyConstraints({
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        });
+      } catch {
+        // Constraint not supported — continue with default processing
+      }
     }
 
     // Listen for track ended events (e.g. display session terminated by OS)
@@ -49,6 +52,27 @@ export class SystemAudioCapture {
     }
 
     return this.stream;
+  }
+
+  private async acquireDisplayMedia(): Promise<MediaStream> {
+    try {
+      return await navigator.mediaDevices.getDisplayMedia({
+        audio: true,
+        video: false,
+        systemAudio: "include",
+      } as DisplayMediaStreamOptions);
+    } catch (err) {
+      // User explicitly denied permission — do not retry
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        throw err;
+      }
+      // video: false may not be supported (e.g. CEF); fall back to video: true
+      return await navigator.mediaDevices.getDisplayMedia({
+        audio: true,
+        video: true,
+        systemAudio: "include",
+      } as DisplayMediaStreamOptions);
+    }
   }
 
   onTrackEnded(callback: () => void): void {

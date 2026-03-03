@@ -197,6 +197,20 @@ describe("RecordingSession", () => {
     });
   });
 
+  describe("error → acquiring", () => {
+    it("transitions to acquiring on START to allow retry after error", () => {
+      session.dispatch({ type: "START", requestedTracks: ["mic"] });
+      session.dispatch({ type: "ERROR", reason: "Could not start video source" });
+      expect(session.getState().type).toBe("error");
+
+      session.dispatch({ type: "START", requestedTracks: ["system"] });
+      expect(session.getState()).toEqual({
+        type: "acquiring",
+        requestedTracks: ["system"],
+      });
+    });
+  });
+
   describe("invalid transitions are ignored", () => {
     it("ignores START when not idle", () => {
       session.dispatch({ type: "START", requestedTracks: ["mic"] });

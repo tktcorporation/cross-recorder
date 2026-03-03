@@ -163,6 +163,9 @@ export class RecordingSession {
     if (event.type === "DISMISS") {
       return { type: "idle" };
     }
+    if (event.type === "START") {
+      return { type: "acquiring", requestedTracks: event.requestedTracks };
+    }
     return null;
   }
 }

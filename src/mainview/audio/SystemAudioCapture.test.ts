@@ -34,7 +34,31 @@ describe("SystemAudioCapture", () => {
     vi.restoreAllMocks();
   });
 
-  it("calls getDisplayMedia with video: true and systemAudio: include", async () => {
+  it("tries video: false first, then falls back to video: true on error", async () => {
+    const audioTrack = createMockTrack("audio");
+    const mockStream = createMockStream([audioTrack]);
+    const getDisplayMedia = vi
+      .fn()
+      .mockRejectedValueOnce(new DOMException("not supported", "NotSupportedError"))
+      .mockResolvedValueOnce(mockStream);
+    vi.stubGlobal("navigator", {
+      mediaDevices: { getDisplayMedia },
+    });
+
+    await capture.start();
+
+    expect(getDisplayMedia).toHaveBeenCalledTimes(2);
+    expect(getDisplayMedia).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ video: false, systemAudio: "include" }),
+    );
+    expect(getDisplayMedia).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ video: true, systemAudio: "include" }),
+    );
+  });
+
+  it("succeeds with video: false when supported", async () => {
     const audioTrack = createMockTrack("audio");
     const mockStream = createMockStream([audioTrack]);
     const getDisplayMedia = vi.fn().mockResolvedValue(mockStream);
@@ -46,12 +70,20 @@ describe("SystemAudioCapture", () => {
 
     expect(getDisplayMedia).toHaveBeenCalledOnce();
     expect(getDisplayMedia).toHaveBeenCalledWith(
-      expect.objectContaining({
-        video: true,
-        systemAudio: "include",
-        audio: expect.anything(),
-      }),
+      expect.objectContaining({ video: false, systemAudio: "include" }),
     );
+  });
+
+  it("does not retry on NotAllowedError (user denied permission)", async () => {
+    const getDisplayMedia = vi
+      .fn()
+      .mockRejectedValue(new DOMException("denied", "NotAllowedError"));
+    vi.stubGlobal("navigator", {
+      mediaDevices: { getDisplayMedia },
+    });
+
+    await expect(capture.start()).rejects.toThrow("denied");
+    expect(getDisplayMedia).toHaveBeenCalledOnce();
   });
 
   it("disables video tracks without stopping them to keep the display media session alive", async () => {
@@ -134,7 +166,7 @@ describe("SystemAudioCapture", () => {
     expect(audioTrack.stop).toHaveBeenCalled();
   });
 
-  it("throws when applyConstraints fails for all audio tracks", async () => {
+  it("continues recording even when applyConstraints fails (best-effort)", async () => {
     const mockTrack = {
       kind: "audio",
       stop: vi.fn(),
@@ -154,7 +186,10 @@ describe("SystemAudioCapture", () => {
     });
 
     const capture = new SystemAudioCapture();
-    await expect(capture.start()).rejects.toThrow();
+    // Should NOT throw — applyConstraints failure is best-effort
+    const stream = await capture.start();
+    expect(stream).toBe(mockStream);
+    expect(mockTrack.applyConstraints).toHaveBeenCalled();
   });
 
   it("stop() is safe to call when no stream exists", () => {

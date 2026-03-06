@@ -16,6 +16,7 @@ import CoreMedia
 struct Config {
     var sampleRate: Int = 48000
     var channels: Int = 2
+    var checkOnly: Bool = false
 }
 
 func parseArgs() -> Config {
@@ -34,6 +35,8 @@ func parseArgs() -> Config {
             if i < args.count, let ch = Int(args[i]) {
                 config.channels = ch
             }
+        case "--check":
+            config.checkOnly = true
         default:
             break
         }
@@ -193,40 +196,62 @@ class SystemAudioRecorder: NSObject, SCStreamDelegate, SCStreamOutput {
 
 if #available(macOS 13.0, *) {
     let config = parseArgs()
-    let recorder = SystemAudioRecorder(config: config)
 
-    // Handle SIGTERM
-    let termSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
-    signal(SIGTERM, SIG_IGN)
-    termSource.setEventHandler {
+    // --check: verify ScreenCaptureKit access and exit
+    if config.checkOnly {
         Task {
-            await recorder.stop()
-            exit(0)
+            do {
+                let content = try await SCShareableContent.excludingDesktopWindows(
+                    false, onScreenWindowsOnly: false
+                )
+                if content.displays.isEmpty {
+                    writeStatus(["check": "error", "reason": "No displays found"])
+                    exit(1)
+                }
+                writeStatus(["check": "ok"])
+                exit(0)
+            } catch {
+                writeStatus(["check": "error", "reason": error.localizedDescription])
+                exit(1)
+            }
         }
-    }
-    termSource.resume()
+        RunLoop.main.run()
+    } else {
+        let recorder = SystemAudioRecorder(config: config)
 
-    // Handle SIGINT
-    let intSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
-    signal(SIGINT, SIG_IGN)
-    intSource.setEventHandler {
+        // Handle SIGTERM
+        let termSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        signal(SIGTERM, SIG_IGN)
+        termSource.setEventHandler {
+            Task {
+                await recorder.stop()
+                exit(0)
+            }
+        }
+        termSource.resume()
+
+        // Handle SIGINT
+        let intSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
+        signal(SIGINT, SIG_IGN)
+        intSource.setEventHandler {
+            Task {
+                await recorder.stop()
+                exit(0)
+            }
+        }
+        intSource.resume()
+
         Task {
-            await recorder.stop()
-            exit(0)
+            do {
+                try await recorder.start()
+            } catch {
+                writeStatus(["error": error.localizedDescription])
+                exit(1)
+            }
         }
-    }
-    intSource.resume()
 
-    Task {
-        do {
-            try await recorder.start()
-        } catch {
-            writeStatus(["error": error.localizedDescription])
-            exit(1)
-        }
+        RunLoop.main.run()
     }
-
-    RunLoop.main.run()
 } else {
     writeStatus(["error": "macOS 13.0 or later is required for system audio capture"])
     exit(1)

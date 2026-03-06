@@ -78,6 +78,9 @@ import { AudioCaptureManager } from "./AudioCaptureManager.js";
 
 function createMockRpc() {
   return {
+    checkSystemAudioPermission: vi
+      .fn()
+      .mockResolvedValue({ ok: true }),
     startRecordingSession: vi
       .fn()
       .mockResolvedValue({ success: true, filePath: "/tmp/test" }),
@@ -112,6 +115,7 @@ describe("AudioCaptureManager", () => {
     rpc = createMockRpc();
     mockMicCapture.start.mockResolvedValue({ getTracks: () => [] });
     mockMicCapture.stop.mockClear();
+    mockSystemCapture.start.mockClear();
     mockSystemCapture.start.mockResolvedValue({ getTracks: () => [] });
     mockSystemCapture.stop.mockClear();
     mockSystemCapture.onTrackEnded.mockClear();
@@ -345,5 +349,54 @@ describe("AudioCaptureManager", () => {
         totalChunks: { mic: 5, system: 0 },
       }),
     );
+  });
+
+  it("runs permission check before starting native system audio", async () => {
+    const manager = new AudioCaptureManager(rpc);
+
+    await manager.start({
+      micEnabled: false,
+      systemAudioEnabled: true,
+      nativeSystemAudio: true,
+    });
+
+    expect(rpc.checkSystemAudioPermission).toHaveBeenCalledOnce();
+    expect(rpc.startRecordingSession).toHaveBeenCalledWith(
+      expect.objectContaining({ nativeSystemAudio: true }),
+    );
+    // System audio via getDisplayMedia should NOT be started for native capture
+    expect(mockSystemCapture.start).not.toHaveBeenCalled();
+  });
+
+  it("throws when native system audio permission check fails", async () => {
+    rpc.checkSystemAudioPermission.mockResolvedValue({
+      ok: false,
+      reason: "Screen Recording permission required",
+    });
+
+    const manager = new AudioCaptureManager(rpc);
+
+    await expect(
+      manager.start({
+        micEnabled: false,
+        systemAudioEnabled: true,
+        nativeSystemAudio: true,
+      }),
+    ).rejects.toThrow("System audio capture permission denied");
+
+    expect(rpc.startRecordingSession).not.toHaveBeenCalled();
+  });
+
+  it("skips permission check when not using native system audio", async () => {
+    const manager = new AudioCaptureManager(rpc);
+
+    await manager.start({
+      micEnabled: false,
+      systemAudioEnabled: true,
+      nativeSystemAudio: false,
+    });
+
+    expect(rpc.checkSystemAudioPermission).not.toHaveBeenCalled();
+    expect(mockSystemCapture.start).toHaveBeenCalled();
   });
 });

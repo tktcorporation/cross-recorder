@@ -8,7 +8,6 @@ import type { SessionState } from "../audio/types.js";
 
 type RecordingStore = {
   // State
-  recordingState: RecordingState;
   sessionState: SessionState;
   selectedMicId: string | null;
   micEnabled: boolean;
@@ -24,9 +23,9 @@ type RecordingStore = {
   recordingError: string | null;
   nativeSystemAudioAvailable: boolean;
   nativeSystemLevel: number;
+  platform: string;
 
   // Actions
-  setRecordingState: (state: RecordingState) => void;
   setSessionState: (state: SessionState) => void;
   setSelectedMicId: (id: string | null) => void;
   setMicEnabled: (enabled: boolean) => void;
@@ -43,11 +42,11 @@ type RecordingStore = {
   setRecordingError: (error: string | null) => void;
   setNativeSystemAudioAvailable: (available: boolean) => void;
   setNativeSystemLevel: (level: number) => void;
+  setPlatform: (platform: string) => void;
   reset: () => void;
 };
 
 const initialState = {
-  recordingState: "idle" as RecordingState,
   sessionState: { type: "idle" } as SessionState,
   selectedMicId: null,
   micEnabled: true,
@@ -63,6 +62,7 @@ const initialState = {
   recordingError: null as string | null,
   nativeSystemAudioAvailable: false,
   nativeSystemLevel: 0,
+  platform: "",
 };
 
 /** Derive the legacy RecordingState from a SessionState */
@@ -83,7 +83,6 @@ export function selectRecordingState(state: SessionState): RecordingState {
 export const useRecordingStore = create<RecordingStore>((set) => ({
   ...initialState,
 
-  setRecordingState: (state) => set({ recordingState: state }),
   setSessionState: (state) => set({ sessionState: state }),
   setSelectedMicId: (id) => set({ selectedMicId: id }),
   setMicEnabled: (enabled) => set({ micEnabled: enabled }),
@@ -104,5 +103,6 @@ export const useRecordingStore = create<RecordingStore>((set) => ({
   setNativeSystemAudioAvailable: (available) =>
     set({ nativeSystemAudioAvailable: available }),
   setNativeSystemLevel: (level) => set({ nativeSystemLevel: level }),
+  setPlatform: (platform) => set({ platform }),
   reset: () => set(initialState),
 }));

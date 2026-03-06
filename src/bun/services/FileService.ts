@@ -112,44 +112,35 @@ export function startSession(
   });
 }
 
-/**
- * Synchronously write a raw PCM buffer to a track's WAV file.
- * Used by NativeSystemAudioCapture to bypass base64 encoding.
- */
-export function writeChunkBufferSync(
+function writeChunkToTrack(
+  sessionId: string,
+  trackKind: TrackKind,
+  buffer: Buffer,
+): { success: true; bytesWritten: number } {
+  const session = sessions.get(sessionId);
+  if (!session) throw new Error(`Session not found: ${sessionId}`);
+
+  const track = session.tracks.get(trackKind);
+  if (!track) throw new Error(`Track not found: ${trackKind} in session ${sessionId}`);
+
+  fs.writeSync(track.fd, buffer, 0, buffer.length);
+  track.bytesWritten += buffer.length;
+  return { success: true, bytesWritten: track.bytesWritten };
+}
+
+/** Synchronous write for NativeSystemAudioCapture callback. */
+export function writeChunkSync(
   sessionId: string,
   trackKind: TrackKind,
   buffer: Buffer,
 ): void {
-  const session = sessions.get(sessionId);
-  if (!session) return;
-
-  const track = session.tracks.get(trackKind);
-  if (!track) return;
-
-  fs.writeSync(track.fd, buffer, 0, buffer.length);
-  track.bytesWritten += buffer.length;
+  writeChunkToTrack(sessionId, trackKind, buffer);
 }
 
-export function writeChunk(sessionId: string, trackKind: TrackKind, pcmData: string) {
-  return Effect.tryPromise({
-    try: async () => {
-      const session = sessions.get(sessionId);
-      if (!session) {
-        throw new Error(`Session not found: ${sessionId}`);
-      }
-
-      const track = session.tracks.get(trackKind);
-      if (!track) {
-        throw new Error(`Track not found: ${trackKind} in session ${sessionId}`);
-      }
-
-      const buffer = Buffer.from(pcmData, "base64");
-      fs.writeSync(track.fd, buffer, 0, buffer.length);
-      track.bytesWritten += buffer.length;
-
-      return { success: true as const, bytesWritten: track.bytesWritten };
-    },
+/** Effect-wrapped write for RPC handler (accepts Buffer, not base64). */
+export function writeChunk(sessionId: string, trackKind: TrackKind, buffer: Buffer) {
+  return Effect.try({
+    try: () => writeChunkToTrack(sessionId, trackKind, buffer),
     catch: (error) =>
       new FileWriteError({
         path: sessions.get(sessionId)?.sessionDir ?? sessionId,

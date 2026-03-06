@@ -1,35 +1,20 @@
 import { nanoid } from "nanoid";
-import type { RecordingMetadata, TrackKind } from "@shared/types.js";
+import type { RecordingConfig, RecordingMetadata, TrackKind } from "@shared/types.js";
 import { DEFAULT_SAMPLE_RATE, DEFAULT_BIT_DEPTH } from "@shared/constants.js";
 import { MicrophoneCapture } from "./MicrophoneCapture.js";
 import { SystemAudioCapture } from "./SystemAudioCapture.js";
 import { RecordingPipeline } from "./RecordingPipeline.js";
 import { ChunkWriter } from "./ChunkWriter.js";
+import type { rpc } from "../rpc.js";
 
-import type { RecordingConfig } from "@shared/types.js";
-
-type RpcRequest = {
-  startRecordingSession: (params: {
-    sessionId: string;
-    config: RecordingConfig;
-    tracks: Array<{ trackKind: TrackKind; channels: number }>;
-    nativeSystemAudio?: boolean;
-  }) => Promise<{ success: boolean; filePath: string }>;
-  saveRecordingChunk: (params: {
-    sessionId: string;
-    trackKind: TrackKind;
-    chunkIndex: number;
-    pcmData: string;
-  }) => Promise<{ success: boolean; bytesWritten: number }>;
-  finalizeRecording: (params: {
-    sessionId: string;
-    config: RecordingConfig;
-    totalChunks: Record<TrackKind, number>;
-  }) => Promise<RecordingMetadata>;
-  cancelRecording: (params: {
-    sessionId: string;
-  }) => Promise<{ success: boolean }>;
-};
+type RpcRequest = Pick<
+  typeof rpc.request,
+  | "checkSystemAudioPermission"
+  | "startRecordingSession"
+  | "saveRecordingChunk"
+  | "finalizeRecording"
+  | "cancelRecording"
+>;
 
 export class AudioCaptureManager {
   private pipeline: RecordingPipeline;
@@ -95,6 +80,18 @@ export class AudioCaptureManager {
       micDeviceId: config.micDeviceId ?? null,
     };
     this.currentConfig = recordingConfig;
+
+    // Preflight check: verify ScreenCaptureKit permission before starting
+    if (this.usingNativeSystemAudio) {
+      const permCheck =
+        await this.rpcRequest.checkSystemAudioPermission({});
+      if (!permCheck.ok) {
+        throw new Error(
+          `System audio capture permission denied: ${permCheck.reason ?? "Unknown reason"}. ` +
+            "Please grant Screen Recording permission in System Settings > Privacy & Security.",
+        );
+      }
+    }
 
     await this.rpcRequest.startRecordingSession({
       sessionId: this.sessionId,

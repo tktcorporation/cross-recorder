@@ -5,7 +5,9 @@ import type { RecordingConfig, TrackKind } from "../shared/types.js";
 import * as FileService from "./services/FileService.js";
 import * as RecordingManager from "./services/RecordingManager.js";
 import * as UpdateService from "./services/UpdateService.js";
-import * as NativeCapture from "./services/NativeSystemAudioCapture.js";
+import { NativeSystemAudioCapture } from "./services/NativeSystemAudioCapture.js";
+
+const nativeCapture = new NativeSystemAudioCapture();
 
 export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
   handlers: {
@@ -13,8 +15,18 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
       getPlatform: async () => {
         return {
           platform: process.platform,
-          nativeSystemAudioAvailable: NativeCapture.isAvailable(),
+          nativeSystemAudioAvailable: NativeSystemAudioCapture.isAvailable(),
         };
+      },
+
+      checkSystemAudioPermission: async () => {
+        if (!NativeSystemAudioCapture.isAvailable()) {
+          return {
+            ok: false as const,
+            reason: "Native capture not available on this platform",
+          };
+        }
+        return NativeSystemAudioCapture.checkPermission();
       },
 
       startRecordingSession: async (params: {
@@ -30,11 +42,11 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
         // Start native system audio capture on macOS when requested
         if (params.nativeSystemAudio) {
           try {
-            await NativeCapture.start(
+            await nativeCapture.start(
               params.sessionId,
               params.config.sampleRate,
               (buffer) =>
-                FileService.writeChunkBufferSync(
+                FileService.writeChunkSync(
                   params.sessionId,
                   "system",
                   buffer,
@@ -60,8 +72,9 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
         chunkIndex: number;
         pcmData: string;
       }) => {
+        const buffer = Buffer.from(params.pcmData, "base64");
         return Effect.runPromise(
-          FileService.writeChunk(params.sessionId, params.trackKind, params.pcmData),
+          FileService.writeChunk(params.sessionId, params.trackKind, buffer),
         );
       },
 
@@ -71,7 +84,7 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
         totalChunks: Record<TrackKind, number>;
       }) => {
         // Stop native capture first to flush remaining PCM data
-        await NativeCapture.stopIfActive(params.sessionId);
+        await nativeCapture.stopIfActive(params.sessionId);
 
         const metadata = await Effect.runPromise(
           FileService.finalizeRecording(
@@ -85,7 +98,7 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
       },
 
       cancelRecording: async (params: { sessionId: string }) => {
-        await NativeCapture.stopIfActive(params.sessionId);
+        await nativeCapture.stopIfActive(params.sessionId);
         return Effect.runPromise(FileService.cancelSession(params.sessionId));
       },
 

@@ -18,292 +18,294 @@ interface ActiveCapture {
   onError?: ErrorCallback;
 }
 
-let activeCapture: ActiveCapture | null = null;
+export class NativeSystemAudioCapture {
+  private capture: ActiveCapture | null = null;
 
-function findBinaryPath(): string | null {
-  // Development: project root / build / native
-  const devPath = path.join(
-    process.cwd(),
-    "build",
-    "native",
-    "capture-system-audio",
-  );
-  if (fs.existsSync(devPath)) return devPath;
+  private static findBinaryPath(): string | null {
+    // Development: project root / build / native
+    const devPath = path.join(
+      process.cwd(),
+      "build",
+      "native",
+      "capture-system-audio",
+    );
+    if (fs.existsSync(devPath)) return devPath;
 
-  // Production: relative to the bun entry (inside app bundle)
-  const prodPath = path.resolve(
-    import.meta.dir,
-    "..",
-    "..",
-    "native",
-    "capture-system-audio",
-  );
-  if (fs.existsSync(prodPath)) return prodPath;
+    // Production: relative to the bun entry (inside app bundle)
+    const prodPath = path.resolve(
+      import.meta.dir,
+      "..",
+      "..",
+      "native",
+      "capture-system-audio",
+    );
+    if (fs.existsSync(prodPath)) return prodPath;
 
-  return null;
-}
-
-/** Whether native system audio capture is available on this platform. */
-export function isAvailable(): boolean {
-  return process.platform === "darwin" && findBinaryPath() !== null;
-}
-
-/**
- * Run a preflight check to verify ScreenCaptureKit access and permissions.
- * Returns { ok: true } or { ok: false, reason: string }.
- */
-export async function checkPermission(): Promise<{
-  ok: boolean;
-  reason?: string;
-}> {
-  const binaryPath = findBinaryPath();
-  if (!binaryPath) {
-    return { ok: false, reason: "Native capture binary not found" };
+    return null;
   }
 
-  const proc = Bun.spawn([binaryPath, "--check"], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  /** Whether native system audio capture is available on this platform. */
+  static isAvailable(): boolean {
+    return process.platform === "darwin" && NativeSystemAudioCapture.findBinaryPath() !== null;
+  }
 
-  const decoder = new TextDecoder();
-  let stderr = "";
-
-  const stderrReader = (proc.stderr as ReadableStream<Uint8Array>).getReader();
-  try {
-    for (;;) {
-      const { value, done } = await stderrReader.read();
-      if (done) break;
-      stderr += decoder.decode(value, { stream: true });
+  /**
+   * Run a preflight check to verify ScreenCaptureKit access and permissions.
+   * Returns { ok: true } or { ok: false, reason: string }.
+   */
+  static async checkPermission(): Promise<{
+    ok: boolean;
+    reason?: string;
+  }> {
+    const binaryPath = NativeSystemAudioCapture.findBinaryPath();
+    if (!binaryPath) {
+      return { ok: false, reason: "Native capture binary not found" };
     }
-  } catch {
-    /* stream closed */
-  }
 
-  await proc.exited;
+    const proc = Bun.spawn([binaryPath, "--check"], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
 
-  // Parse the last JSON line from stderr
-  const lines = stderr.trim().split("\n");
-  for (const line of lines.reverse()) {
+    const decoder = new TextDecoder();
+    let stderr = "";
+
+    const stderrReader = (proc.stderr as ReadableStream<Uint8Array>).getReader();
     try {
-      const msg = JSON.parse(line) as Record<string, unknown>;
-      if (msg.check === "ok") return { ok: true };
-      if (msg.check === "error") {
-        return { ok: false, reason: String(msg.reason ?? "Unknown error") };
+      for (;;) {
+        const { value, done } = await stderrReader.read();
+        if (done) break;
+        stderr += decoder.decode(value, { stream: true });
       }
     } catch {
-      /* skip non-JSON */
+      /* stream closed */
     }
+
+    await proc.exited;
+
+    // Parse the last JSON line from stderr
+    const lines = stderr.trim().split("\n");
+    for (const line of lines.reverse()) {
+      try {
+        const msg = JSON.parse(line) as Record<string, unknown>;
+        if (msg.check === "ok") return { ok: true };
+        if (msg.check === "error") {
+          return { ok: false, reason: String(msg.reason ?? "Unknown error") };
+        }
+      } catch {
+        /* skip non-JSON */
+      }
+    }
+
+    return {
+      ok: false,
+      reason: `Preflight check failed (exit code: ${proc.exitCode})`,
+    };
   }
 
-  return {
-    ok: false,
-    reason: `Preflight check failed (exit code: ${proc.exitCode})`,
-  };
-}
-
-/** Whether a capture is currently running (optionally for a specific session). */
-export function isActive(sessionId?: string): boolean {
-  if (!activeCapture) return false;
-  if (sessionId) return activeCapture.sessionId === sessionId;
-  return true;
-}
-
-/**
- * Start native system audio capture.
- *
- * @param sessionId  Recording session ID (used for bookkeeping)
- * @param sampleRate Sample rate in Hz (e.g. 48000)
- * @param writeChunk Called with raw PCM Int16LE buffers to write to the WAV file
- * @param onLevel    Called periodically with the RMS audio level (0..1)
- * @param onError    Called if the subprocess reports an error or crashes
- */
-export async function start(
-  sessionId: string,
-  sampleRate: number,
-  writeChunk: WriteChunkFn,
-  onLevel?: LevelCallback,
-  onError?: ErrorCallback,
-): Promise<void> {
-  if (activeCapture) {
-    throw new Error("Native system audio capture is already active");
+  /** Whether a capture is currently running (optionally for a specific session). */
+  isActive(sessionId?: string): boolean {
+    if (!this.capture) return false;
+    if (sessionId) return this.capture.sessionId === sessionId;
+    return true;
   }
 
-  const binaryPath = findBinaryPath();
-  if (!binaryPath) {
-    throw new Error("Native system audio capture binary not found");
-  }
+  /**
+   * Start native system audio capture.
+   *
+   * @param sessionId  Recording session ID (used for bookkeeping)
+   * @param sampleRate Sample rate in Hz (e.g. 48000)
+   * @param writeChunk Called with raw PCM Int16LE buffers to write to the WAV file
+   * @param onLevel    Called periodically with the RMS audio level (0..1)
+   * @param onError    Called if the subprocess reports an error or crashes
+   */
+  async start(
+    sessionId: string,
+    sampleRate: number,
+    writeChunk: WriteChunkFn,
+    onLevel?: LevelCallback,
+    onError?: ErrorCallback,
+  ): Promise<void> {
+    if (this.capture) {
+      throw new Error("Native system audio capture is already active");
+    }
 
-  const proc = Bun.spawn(
-    [binaryPath, "--sample-rate", String(sampleRate), "--channels", "2"],
-    { stdout: "pipe", stderr: "pipe" },
-  );
+    const binaryPath = NativeSystemAudioCapture.findBinaryPath();
+    if (!binaryPath) {
+      throw new Error("Native system audio capture binary not found");
+    }
 
-  activeCapture = { process: proc, sessionId, onLevel, onError };
+    const proc = Bun.spawn(
+      [binaryPath, "--sample-rate", String(sampleRate), "--channels", "2"],
+      { stdout: "pipe", stderr: "pipe" },
+    );
 
-  // Wait for the first status message from stderr to confirm startup
-  const decoder = new TextDecoder();
-  const stderrReader = (proc.stderr as ReadableStream<Uint8Array>).getReader();
-  let stderrBuffer = "";
+    this.capture = { process: proc, sessionId, onLevel, onError };
 
-  const firstMsg = await readNextMessage(stderrReader, decoder, stderrBuffer);
-  stderrBuffer = firstMsg.remaining;
+    // Wait for the first status message from stderr to confirm startup
+    const decoder = new TextDecoder();
+    const stderrReader = (proc.stderr as ReadableStream<Uint8Array>).getReader();
+    let stderrBuffer = "";
 
-  if (firstMsg.message.error) {
-    activeCapture = null;
-    proc.kill();
-    throw new Error(String(firstMsg.message.error));
-  }
+    const firstMsg = await this.readNextMessage(stderrReader, decoder, stderrBuffer);
+    stderrBuffer = firstMsg.remaining;
 
-  if (firstMsg.message.status !== "started") {
-    activeCapture = null;
-    proc.kill();
-    throw new Error(
-      `Unexpected native capture status: ${JSON.stringify(firstMsg.message)}`,
+    if (firstMsg.message.error) {
+      this.capture = null;
+      proc.kill();
+      throw new Error(String(firstMsg.message.error));
+    }
+
+    if (firstMsg.message.status !== "started") {
+      this.capture = null;
+      proc.kill();
+      throw new Error(
+        `Unexpected native capture status: ${JSON.stringify(firstMsg.message)}`,
+      );
+    }
+
+    // Start background readers for ongoing stderr (levels) and stdout (PCM data)
+    this.readStderrLoop(stderrReader, decoder, stderrBuffer);
+    this.readStdoutLoop(
+      (proc.stdout as ReadableStream<Uint8Array>).getReader(),
+      writeChunk,
     );
   }
 
-  // Start background readers for ongoing stderr (levels) and stdout (PCM data)
-  readStderrLoop(stderrReader, decoder, stderrBuffer);
-  readStdoutLoop(
-    (proc.stdout as ReadableStream<Uint8Array>).getReader(),
-    writeChunk,
-  );
-}
+  /** Stop any active capture, waiting for the subprocess to exit. */
+  async stop(): Promise<void> {
+    if (!this.capture) return;
 
-/** Stop any active capture, waiting for the subprocess to exit. */
-export async function stop(): Promise<void> {
-  if (!activeCapture) return;
+    const proc = this.capture.process;
+    this.capture = null;
 
-  const proc = activeCapture.process;
-  activeCapture = null;
+    proc.kill("SIGTERM");
 
-  proc.kill("SIGTERM");
+    // Wait for exit with a timeout
+    const exitPromise = proc.exited;
+    const timeoutPromise = new Promise<void>((resolve) =>
+      setTimeout(resolve, 3000),
+    );
+    await Promise.race([exitPromise, timeoutPromise]);
 
-  // Wait for exit with a timeout
-  const exitPromise = proc.exited;
-  const timeoutPromise = new Promise<void>((resolve) =>
-    setTimeout(resolve, 3000),
-  );
-  await Promise.race([exitPromise, timeoutPromise]);
-
-  if (proc.exitCode === null) {
-    proc.kill("SIGKILL");
+    if (proc.exitCode === null) {
+      proc.kill("SIGKILL");
+    }
   }
-}
 
-/** Convenience: stop only if there is an active capture (optionally for a session). */
-export async function stopIfActive(sessionId?: string): Promise<void> {
-  if (isActive(sessionId)) {
-    await stop();
+  /** Convenience: stop only if there is an active capture (optionally for a session). */
+  async stopIfActive(sessionId?: string): Promise<void> {
+    if (this.isActive(sessionId)) {
+      await this.stop();
+    }
   }
-}
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Internal helpers
+  // ---------------------------------------------------------------------------
 
-async function readNextMessage(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  decoder: TextDecoder,
-  buffer: string,
-): Promise<{ message: Record<string, unknown>; remaining: string }> {
-  let buf = buffer;
+  private async readNextMessage(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    decoder: TextDecoder,
+    buffer: string,
+  ): Promise<{ message: Record<string, unknown>; remaining: string }> {
+    let buf = buffer;
 
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(
-      () =>
-        reject(
-          new Error("Timeout waiting for native capture process to start"),
-        ),
-      10_000,
-    ),
-  );
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error("Timeout waiting for native capture process to start"),
+          ),
+        10_000,
+      ),
+    );
 
-  const read = async (): Promise<{
-    message: Record<string, unknown>;
-    remaining: string;
-  }> => {
-    for (;;) {
-      const newlineIdx = buf.indexOf("\n");
-      if (newlineIdx >= 0) {
-        const line = buf.slice(0, newlineIdx).trim();
-        buf = buf.slice(newlineIdx + 1);
-        if (line) {
-          try {
-            return {
-              message: JSON.parse(line) as Record<string, unknown>,
-              remaining: buf,
-            };
-          } catch {
-            /* skip non-JSON lines */
+    const read = async (): Promise<{
+      message: Record<string, unknown>;
+      remaining: string;
+    }> => {
+      for (;;) {
+        const newlineIdx = buf.indexOf("\n");
+        if (newlineIdx >= 0) {
+          const line = buf.slice(0, newlineIdx).trim();
+          buf = buf.slice(newlineIdx + 1);
+          if (line) {
+            try {
+              return {
+                message: JSON.parse(line) as Record<string, unknown>,
+                remaining: buf,
+              };
+            } catch {
+              /* skip non-JSON lines */
+            }
           }
         }
-      }
 
-      const { value, done } = await reader.read();
-      if (done) throw new Error("Native capture process exited unexpectedly");
-      buf += decoder.decode(value, { stream: true });
-    }
-  };
-
-  return Promise.race([read(), timeout]);
-}
-
-function readStderrLoop(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  decoder: TextDecoder,
-  initialBuffer: string,
-): void {
-  let buffer = initialBuffer;
-
-  void (async () => {
-    try {
-      for (;;) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done) throw new Error("Native capture process exited unexpectedly");
+        buf += decoder.decode(value, { stream: true });
+      }
+    };
 
-        buffer += decoder.decode(value, { stream: true });
+    return Promise.race([read(), timeout]);
+  }
 
-        let newlineIdx: number;
-        while ((newlineIdx = buffer.indexOf("\n")) >= 0) {
-          const line = buffer.slice(0, newlineIdx).trim();
-          buffer = buffer.slice(newlineIdx + 1);
+  private readStderrLoop(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    decoder: TextDecoder,
+    initialBuffer: string,
+  ): void {
+    let buffer = initialBuffer;
 
-          if (!line) continue;
-          try {
-            const msg = JSON.parse(line) as Record<string, unknown>;
-            if (typeof msg.level === "number") {
-              activeCapture?.onLevel?.(msg.level as number);
+    void (async () => {
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          let newlineIdx: number;
+          while ((newlineIdx = buffer.indexOf("\n")) >= 0) {
+            const line = buffer.slice(0, newlineIdx).trim();
+            buffer = buffer.slice(newlineIdx + 1);
+
+            if (!line) continue;
+            try {
+              const msg = JSON.parse(line) as Record<string, unknown>;
+              if (typeof msg.level === "number") {
+                this.capture?.onLevel?.(msg.level as number);
+              }
+              if (typeof msg.error === "string") {
+                this.capture?.onError?.(msg.error as string);
+              }
+            } catch {
+              /* skip */
             }
-            if (typeof msg.error === "string") {
-              activeCapture?.onError?.(msg.error as string);
-            }
-          } catch {
-            /* skip */
           }
         }
+      } catch {
+        /* stream closed */
       }
-    } catch {
-      /* stream closed */
-    }
-  })();
-}
+    })();
+  }
 
-function readStdoutLoop(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  writeChunk: WriteChunkFn,
-): void {
-  void (async () => {
-    try {
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (!activeCapture) break;
-        writeChunk(Buffer.from(value));
+  private readStdoutLoop(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    writeChunk: WriteChunkFn,
+  ): void {
+    void (async () => {
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (!this.capture) break;
+          writeChunk(Buffer.from(value));
+        }
+      } catch {
+        /* stream closed */
       }
-    } catch {
-      /* stream closed */
-    }
-  })();
+    })();
+  }
 }

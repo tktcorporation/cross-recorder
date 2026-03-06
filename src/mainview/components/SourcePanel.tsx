@@ -17,6 +17,7 @@ export function SourcePanel() {
     (s) => s.nativeSystemAudioAvailable,
   );
   const nativeSystemLevel = useRecordingStore((s) => s.nativeSystemLevel);
+  const platform = useRecordingStore((s) => s.platform);
 
   const { devices, selectedMicId, setSelectedMicId } = useAudioDevices();
 
@@ -123,7 +124,9 @@ export function SourcePanel() {
             <p className="mt-2 text-xs text-gray-500">
               {nativeSystemAudioAvailable
                 ? "System audio will be captured directly via ScreenCaptureKit"
-                : "Screen selection dialog will appear when recording starts"}
+                : platform === "darwin"
+                  ? "Native capture binary not found. Rebuild the app with 'pnpm build:native' on macOS."
+                  : "Screen selection dialog will appear when recording starts"}
             </p>
             {isRecording && (
               <div className="mt-2">

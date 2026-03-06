@@ -24,6 +24,7 @@ type RecordingStore = {
   recordingError: string | null;
   nativeSystemAudioAvailable: boolean;
   nativeSystemLevel: number;
+  platform: string;
 
   // Actions
   setRecordingState: (state: RecordingState) => void;
@@ -43,6 +44,7 @@ type RecordingStore = {
   setRecordingError: (error: string | null) => void;
   setNativeSystemAudioAvailable: (available: boolean) => void;
   setNativeSystemLevel: (level: number) => void;
+  setPlatform: (platform: string) => void;
   reset: () => void;
 };
 
@@ -63,6 +65,7 @@ const initialState = {
   recordingError: null as string | null,
   nativeSystemAudioAvailable: false,
   nativeSystemLevel: 0,
+  platform: "",
 };
 
 /** Derive the legacy RecordingState from a SessionState */
@@ -104,5 +107,6 @@ export const useRecordingStore = create<RecordingStore>((set) => ({
   setNativeSystemAudioAvailable: (available) =>
     set({ nativeSystemAudioAvailable: available }),
   setNativeSystemLevel: (level) => set({ nativeSystemLevel: level }),
+  setPlatform: (platform) => set({ platform }),
   reset: () => set(initialState),
 }));

@@ -6,6 +6,8 @@ export function useRpc() {
     () => ({
       getPlatform: (params: Parameters<typeof rpc.request.getPlatform>[0]) =>
         rpc.request.getPlatform(params),
+      checkSystemAudioPermission: (params: Parameters<typeof rpc.request.checkSystemAudioPermission>[0]) =>
+        rpc.request.checkSystemAudioPermission(params),
       startRecordingSession: (params: Parameters<typeof rpc.request.startRecordingSession>[0]) =>
         rpc.request.startRecordingSession(params),
       saveRecordingChunk: (params: Parameters<typeof rpc.request.saveRecordingChunk>[0]) =>

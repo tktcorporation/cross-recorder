@@ -17,6 +17,16 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
         };
       },
 
+      checkSystemAudioPermission: async () => {
+        if (!NativeCapture.isAvailable()) {
+          return {
+            ok: false as const,
+            reason: "Native capture not available on this platform",
+          };
+        }
+        return NativeCapture.checkPermission();
+      },
+
       startRecordingSession: async (params: {
         sessionId: string;
         config: RecordingConfig;

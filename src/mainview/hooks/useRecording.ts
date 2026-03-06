@@ -36,12 +36,14 @@ export function useRecording() {
   const setNativeSystemLevel = useRecordingStore(
     (s) => s.setNativeSystemLevel,
   );
+  const setPlatform = useRecordingStore((s) => s.setPlatform);
 
   // --- Platform detection (run once on mount) ---
 
   useEffect(() => {
     request.getPlatform({}).then((result) => {
       setNativeSystemAudioAvailable(result.nativeSystemAudioAvailable);
+      setPlatform(result.platform);
     }).catch(() => {
       // Ignore — default to false (use getDisplayMedia fallback)
     });
@@ -86,6 +88,8 @@ export function useRecording() {
       );
 
       const manager = new ACM({
+        checkSystemAudioPermission: (p) =>
+          request.checkSystemAudioPermission(p),
         startRecordingSession: (p) => request.startRecordingSession(p),
         saveRecordingChunk: (p) => request.saveRecordingChunk(p),
         finalizeRecording: (p) => request.finalizeRecording(p),

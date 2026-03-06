@@ -9,6 +9,9 @@ import { ChunkWriter } from "./ChunkWriter.js";
 import type { RecordingConfig } from "@shared/types.js";
 
 type RpcRequest = {
+  checkSystemAudioPermission: (
+    params: Record<string, never>,
+  ) => Promise<{ ok: boolean; reason?: string }>;
   startRecordingSession: (params: {
     sessionId: string;
     config: RecordingConfig;
@@ -95,6 +98,18 @@ export class AudioCaptureManager {
       micDeviceId: config.micDeviceId ?? null,
     };
     this.currentConfig = recordingConfig;
+
+    // Preflight check: verify ScreenCaptureKit permission before starting
+    if (this.usingNativeSystemAudio) {
+      const permCheck =
+        await this.rpcRequest.checkSystemAudioPermission({});
+      if (!permCheck.ok) {
+        throw new Error(
+          `System audio capture permission denied: ${permCheck.reason ?? "Unknown reason"}. ` +
+            "Please grant Screen Recording permission in System Settings > Privacy & Security.",
+        );
+      }
+    }
 
     await this.rpcRequest.startRecordingSession({
       sessionId: this.sessionId,

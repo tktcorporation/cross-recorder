@@ -18,6 +18,13 @@ export type CrossRecorderRPC = {
           nativeSystemAudioAvailable: boolean;
         };
       };
+      checkSystemAudioPermission: {
+        params: Record<string, never>;
+        response: {
+          ok: boolean;
+          reason?: string;
+        };
+      };
       startRecordingSession: {
         params: {
           sessionId: string;

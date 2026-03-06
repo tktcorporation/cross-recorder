@@ -48,6 +48,60 @@ export function isAvailable(): boolean {
   return process.platform === "darwin" && findBinaryPath() !== null;
 }
 
+/**
+ * Run a preflight check to verify ScreenCaptureKit access and permissions.
+ * Returns { ok: true } or { ok: false, reason: string }.
+ */
+export async function checkPermission(): Promise<{
+  ok: boolean;
+  reason?: string;
+}> {
+  const binaryPath = findBinaryPath();
+  if (!binaryPath) {
+    return { ok: false, reason: "Native capture binary not found" };
+  }
+
+  const proc = Bun.spawn([binaryPath, "--check"], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  const decoder = new TextDecoder();
+  let stderr = "";
+
+  const stderrReader = (proc.stderr as ReadableStream<Uint8Array>).getReader();
+  try {
+    for (;;) {
+      const { value, done } = await stderrReader.read();
+      if (done) break;
+      stderr += decoder.decode(value, { stream: true });
+    }
+  } catch {
+    /* stream closed */
+  }
+
+  await proc.exited;
+
+  // Parse the last JSON line from stderr
+  const lines = stderr.trim().split("\n");
+  for (const line of lines.reverse()) {
+    try {
+      const msg = JSON.parse(line) as Record<string, unknown>;
+      if (msg.check === "ok") return { ok: true };
+      if (msg.check === "error") {
+        return { ok: false, reason: String(msg.reason ?? "Unknown error") };
+      }
+    } catch {
+      /* skip non-JSON */
+    }
+  }
+
+  return {
+    ok: false,
+    reason: `Preflight check failed (exit code: ${proc.exitCode})`,
+  };
+}
+
 /** Whether a capture is currently running (optionally for a specific session). */
 export function isActive(sessionId?: string): boolean {
   if (!activeCapture) return false;

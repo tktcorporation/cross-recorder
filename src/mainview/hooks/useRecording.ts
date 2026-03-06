@@ -4,6 +4,7 @@ import {
   selectRecordingState,
 } from "../stores/recordingStore.js";
 import { useRpc } from "./useRpc.js";
+import { useWindowEvent } from "./useWindowEvent.js";
 import { RecordingSession } from "@audio/RecordingSession.js";
 import type { AudioCaptureManager } from "@audio/AudioCaptureManager.js";
 import type { SessionState } from "@audio/types.js";
@@ -198,40 +199,19 @@ export function useRecording() {
   }, []);
 
   // Listen for status updates from bun process
-  useEffect(() => {
-    const onStatus = (e: Event) => {
-      const detail = (e as CustomEvent).detail as {
-        state: string;
-        elapsedMs: number;
-        fileSizeBytes: number;
-      };
-      updateStatus(detail.elapsedMs, detail.fileSizeBytes);
-    };
-    window.addEventListener("recording-status", onStatus);
-    return () => window.removeEventListener("recording-status", onStatus);
+  useWindowEvent("recording-status", (detail) => {
+    updateStatus(detail.elapsedMs, detail.fileSizeBytes);
   }, [updateStatus]);
 
   // Listen for native system audio level updates from bun process
-  useEffect(() => {
-    const onLevel = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { level: number };
-      setNativeSystemLevel(detail.level);
-    };
-    window.addEventListener("native-system-audio-level", onLevel);
-    return () =>
-      window.removeEventListener("native-system-audio-level", onLevel);
+  useWindowEvent("native-system-audio-level", (detail) => {
+    setNativeSystemLevel(detail.level);
   }, [setNativeSystemLevel]);
 
   // Listen for native system audio errors (subprocess crash etc.)
-  useEffect(() => {
-    const onError = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { reason: string };
-      console.warn("Native system audio error:", detail.reason);
-      sessionRef.current?.dispatch({ type: "TRACK_LOST", track: "system" });
-    };
-    window.addEventListener("native-system-audio-error", onError);
-    return () =>
-      window.removeEventListener("native-system-audio-error", onError);
+  useWindowEvent("native-system-audio-error", (detail) => {
+    console.warn("Native system audio error:", detail.reason);
+    sessionRef.current?.dispatch({ type: "TRACK_LOST", track: "system" });
   }, []);
 
   const startRecording = useCallback(() => {

@@ -8,7 +8,6 @@ import type { SessionState } from "../audio/types.js";
 
 type RecordingStore = {
   // State
-  recordingState: RecordingState;
   sessionState: SessionState;
   selectedMicId: string | null;
   micEnabled: boolean;
@@ -27,7 +26,6 @@ type RecordingStore = {
   platform: string;
 
   // Actions
-  setRecordingState: (state: RecordingState) => void;
   setSessionState: (state: SessionState) => void;
   setSelectedMicId: (id: string | null) => void;
   setMicEnabled: (enabled: boolean) => void;
@@ -49,7 +47,6 @@ type RecordingStore = {
 };
 
 const initialState = {
-  recordingState: "idle" as RecordingState,
   sessionState: { type: "idle" } as SessionState,
   selectedMicId: null,
   micEnabled: true,
@@ -86,7 +83,6 @@ export function selectRecordingState(state: SessionState): RecordingState {
 export const useRecordingStore = create<RecordingStore>((set) => ({
   ...initialState,
 
-  setRecordingState: (state) => set({ recordingState: state }),
   setSessionState: (state) => set({ sessionState: state }),
   setSelectedMicId: (id) => set({ selectedMicId: id }),
   setMicEnabled: (enabled) => set({ micEnabled: enabled }),

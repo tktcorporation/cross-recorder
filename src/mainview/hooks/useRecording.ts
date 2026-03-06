@@ -17,7 +17,6 @@ export function useRecording() {
 
   const sessionState = useRecordingStore((s) => s.sessionState);
   const setSessionState = useRecordingStore((s) => s.setSessionState);
-  const setRecordingState = useRecordingStore((s) => s.setRecordingState);
   const selectedMicId = useRecordingStore((s) => s.selectedMicId);
   const micEnabled = useRecordingStore((s) => s.micEnabled);
   const systemAudioEnabled = useRecordingStore((s) => s.systemAudioEnabled);
@@ -150,9 +149,7 @@ export function useRecording() {
 
   // Handle side effects for state transitions
   function handleStateTransition(state: SessionState) {
-    // Update both stores
     setSessionState(state);
-    setRecordingState(selectRecordingState(state));
 
     switch (state.type) {
       case "acquiring":

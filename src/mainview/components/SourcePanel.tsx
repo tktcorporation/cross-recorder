@@ -1,4 +1,7 @@
-import { useRecordingStore } from "../stores/recordingStore.js";
+import {
+  useRecordingStore,
+  selectRecordingState,
+} from "../stores/recordingStore.js";
 import { useAudioDevices } from "../hooks/useAudioDevices.js";
 import { useAudioLevel } from "../hooks/useAudioLevel.js";
 import { LevelMeter } from "./LevelMeter.js";
@@ -10,7 +13,9 @@ export function SourcePanel() {
   const setSystemAudioEnabled = useRecordingStore(
     (s) => s.setSystemAudioEnabled,
   );
-  const recordingState = useRecordingStore((s) => s.recordingState);
+  const recordingState = useRecordingStore((s) =>
+    selectRecordingState(s.sessionState),
+  );
   const micAnalyser = useRecordingStore((s) => s.micAnalyser);
   const systemAnalyser = useRecordingStore((s) => s.systemAnalyser);
   const nativeSystemAudioAvailable = useRecordingStore(

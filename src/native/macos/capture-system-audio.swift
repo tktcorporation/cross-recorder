@@ -13,6 +13,12 @@ import CoreMedia
 
 // MARK: - Configuration
 
+struct Config {
+    var sampleRate: Int = 48000
+    var channels: Int = 2
+    var checkOnly: Bool = false
+}
+
 func parseArgs() -> Config {
     var config = Config()
     let args = CommandLine.arguments

@@ -1,5 +1,13 @@
 # cross-recorder
 
+## 0.8.1
+
+### Patch Changes
+
+- [#28](https://github.com/tktcorporation/cross-recorder/pull/28) [`679a967`](https://github.com/tktcorporation/cross-recorder/commit/679a967e38f8169e96c3138f1d227145c5ae99eb) Thanks [@tktcorporation](https://github.com/tktcorporation)! - macOS システム音声キャプチャの信頼性改善: ScreenCaptureKit 権限プリフライトチェック追加、ビルドエラーの適切なハンドリング、macOS でネイティブバイナリが見つからない場合の明確なエラーメッセージ表示
+
+- [#28](https://github.com/tktcorporation/cross-recorder/pull/28) [`0c91e66`](https://github.com/tktcorporation/cross-recorder/commit/0c91e66df13a7378480daeaab14fe233f3d8fd51) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 音声キャプチャ周りのリファクタリング: RecordingState 廃止、NativeSystemAudioCapture クラス化、FileService write インターフェース統一、RPC 型導出、イベント伝搬の型安全化
+
 ## 0.8.0
 
 ### Minor Changes

@@ -46,7 +46,7 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
               params.sessionId,
               params.config.sampleRate,
               (buffer) =>
-                FileService.writeChunkBufferSync(
+                FileService.writeChunkSync(
                   params.sessionId,
                   "system",
                   buffer,
@@ -72,8 +72,9 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
         chunkIndex: number;
         pcmData: string;
       }) => {
+        const buffer = Buffer.from(params.pcmData, "base64");
         return Effect.runPromise(
-          FileService.writeChunk(params.sessionId, params.trackKind, params.pcmData),
+          FileService.writeChunk(params.sessionId, params.trackKind, buffer),
         );
       },
 

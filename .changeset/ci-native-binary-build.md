@@ -2,4 +2,4 @@
 "cross-recorder": patch
 ---
 
-CI で macOS native バイナリを自動ビルドし、GitHub Releases にアップロードする仕組みを追加。`pnpm download:native` で pre-built バイナリを取得可能に。
+native バイナリのビルドを CI の既存 macOS ジョブに統合し、不要な別 workflow・download スクリプトを削除

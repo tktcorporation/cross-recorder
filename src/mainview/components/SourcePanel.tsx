@@ -130,7 +130,7 @@ export function SourcePanel() {
               {nativeSystemAudioAvailable
                 ? "System audio will be captured directly via ScreenCaptureKit"
                 : platform === "darwin"
-                  ? "Native capture binary not found. Run 'pnpm download:native' to fetch the pre-built binary, or 'pnpm build:native' on macOS."
+                  ? "Native capture binary not found. Rebuild the app with 'pnpm build:native' on macOS."
                   : "Screen selection dialog will appear when recording starts"}
             </p>
             {isRecording && (

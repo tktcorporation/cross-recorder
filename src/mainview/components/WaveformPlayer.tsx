@@ -3,6 +3,7 @@ import { useRecordingStore } from "../stores/recordingStore.js";
 import { useRpc } from "../hooks/useRpc.js";
 import { useWaveformData } from "../hooks/useWaveformData.js";
 import { WaveformTrack } from "./WaveformTrack.js";
+import { PlaybackController } from "../audio/PlaybackController.js";
 import type { TrackInfo } from "@shared/types.js";
 
 const TRACK_HEIGHT = 48;
@@ -26,7 +27,6 @@ async function fetchTrackBuffer(
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
-  // decodeAudioData detaches the source buffer, so pass a copy
   const copy = bytes.buffer.slice(0);
   return audioContext.decodeAudioData(copy);
 }
@@ -35,123 +35,6 @@ function trackLabel(trackKind: string, channels: number): string {
   const kind = trackKind === "mic" ? "Mic" : "System";
   const ch = channels === 1 ? "Mono" : "Stereo";
   return `${kind} (${ch})`;
-}
-
-/**
- * AudioBufferSourceNode のライフサイクルを管理するマルチトラック再生コントローラー。
- *
- * 背景: AudioBufferSourceNode は使い捨て — stop() 後は再利用できない。
- * play/seek のたびに新しいノードを生成し、古いノードの onended が
- * 誤発火しないよう generation カウンタで世代管理する。
- *
- * 呼び出し元: WaveformPlayer コンポーネント
- */
-class PlaybackController {
-  private ctx: AudioContext;
-  private buffers: AudioBuffer[];
-  private sourceNodes: AudioBufferSourceNode[] = [];
-  private startCtxTime = 0;
-  private offset = 0;
-  private _duration = 0;
-  private _playing = false;
-  /** Incremented on each play/seek to ignore stale onended from old source nodes */
-  private generation = 0;
-  onEnded: (() => void) | null = null;
-
-  constructor(ctx: AudioContext, buffers: AudioBuffer[]) {
-    this.ctx = ctx;
-    this.buffers = buffers;
-    this._duration = Math.max(...buffers.map((b) => b.duration), 0);
-  }
-
-  get duration(): number {
-    return this._duration;
-  }
-
-  get playing(): boolean {
-    return this._playing;
-  }
-
-  get currentTime(): number {
-    if (!this._playing) return this.offset;
-    const elapsed = this.ctx.currentTime - this.startCtxTime + this.offset;
-    return Math.min(elapsed, this._duration);
-  }
-
-  play(fromOffset?: number): void {
-    if (fromOffset !== undefined) {
-      this.offset = fromOffset;
-    }
-
-    this.destroySources();
-
-    const gen = ++this.generation;
-    const nodes: AudioBufferSourceNode[] = [];
-
-    for (const buffer of this.buffers) {
-      const source = this.ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(this.ctx.destination);
-      nodes.push(source);
-    }
-
-    // Attach onended to the longest track's source so playback state
-    // is updated when the last track finishes naturally.
-    const longestIdx = this.buffers.reduce(
-      (maxI, b, i, arr) => (b.duration > arr[maxI]!.duration ? i : maxI),
-      0,
-    );
-    nodes[longestIdx]!.onended = () => {
-      if (gen !== this.generation) return;
-      this._playing = false;
-      this.offset = this._duration;
-      this.onEnded?.();
-    };
-
-    this.startCtxTime = this.ctx.currentTime;
-    for (const node of nodes) {
-      node.start(0, this.offset);
-    }
-    this.sourceNodes = nodes;
-    this._playing = true;
-
-    if (this.ctx.state === "suspended") {
-      this.ctx.resume();
-    }
-  }
-
-  pause(): void {
-    if (!this._playing) return;
-    this.offset = this.currentTime;
-    this.destroySources();
-    this._playing = false;
-  }
-
-  seek(time: number): void {
-    this.offset = Math.max(0, Math.min(time, this._duration));
-    if (this._playing) {
-      this.play(this.offset);
-    }
-  }
-
-  dispose(): void {
-    this.destroySources();
-    this.onEnded = null;
-  }
-
-  private destroySources(): void {
-    this.generation++;
-    for (const node of this.sourceNodes) {
-      try {
-        node.onended = null;
-        node.stop();
-        node.disconnect();
-      } catch {
-        // Already stopped
-      }
-    }
-    this.sourceNodes = [];
-  }
 }
 
 export function WaveformPlayer() {
@@ -176,7 +59,6 @@ export function WaveformPlayer() {
 
   const recording = recordings.find((r) => r.id === playingRecordingId);
 
-  // Container width observation for bar count
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -218,7 +100,6 @@ export function WaveformPlayer() {
     }
   }, [stopTimeUpdates]);
 
-  // Load audio buffers when recording changes
   useEffect(() => {
     if (!recording) {
       disposePlayback();
@@ -322,7 +203,6 @@ export function WaveformPlayer() {
     }
   }, [isPlaying, startTimeUpdates]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       disposePlayback();
@@ -335,7 +215,6 @@ export function WaveformPlayer() {
 
   return (
     <div ref={containerRef} className="rounded-lg bg-gray-800 p-4">
-      {/* Waveform tracks */}
       {isLoading ? (
         <div className="flex items-center justify-center py-4">
           <span className="text-xs text-gray-400">Loading...</span>
@@ -355,7 +234,6 @@ export function WaveformPlayer() {
         </div>
       )}
 
-      {/* Controls */}
       <div className="mt-3 flex items-center gap-3">
         <button
           type="button"

@@ -116,7 +116,7 @@ function writeChunkToTrack(
   sessionId: string,
   trackKind: TrackKind,
   buffer: Buffer,
-): { success: true; bytesWritten: number } {
+): { success: true; chunkSizeBytes: number } {
   const session = sessions.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
@@ -125,9 +125,7 @@ function writeChunkToTrack(
 
   fs.writeSync(track.fd, buffer, 0, buffer.length);
   track.bytesWritten += buffer.length;
-  // Return the number of bytes written in THIS chunk (not cumulative),
-  // because ChunkWriter accumulates the total on its side.
-  return { success: true, bytesWritten: buffer.length };
+  return { success: true, chunkSizeBytes: buffer.length };
 }
 
 /** Synchronous write for NativeSystemAudioCapture callback. */

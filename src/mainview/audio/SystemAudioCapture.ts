@@ -24,20 +24,9 @@ export class SystemAudioCapture {
       );
     }
 
-    // Disable audio processing to capture raw system audio.
-    // Best-effort: some environments (e.g. CEF) may not support these
-    // constraints, so we catch and ignore OverconstrainedError.
-    for (const track of this.stream.getAudioTracks()) {
-      try {
-        await track.applyConstraints({
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        });
-      } catch {
-        // Constraint not supported — continue with default processing
-      }
-    }
+    // Audio processing (noise suppression, echo cancellation, auto gain)
+    // is disabled upfront in acquireDisplayMedia() via audio constraints.
+    // No need for applyConstraints() here — that approach was unreliable.
 
     // Listen for track ended events (e.g. display session terminated by OS)
     this.boundTrackEndedHandler = () => {

@@ -11,7 +11,8 @@ interface ChunkData {
 
 interface SaveChunkResponse {
   success: boolean;
-  bytesWritten: number;
+  /** Size of this individual chunk in bytes (not cumulative total). */
+  chunkSizeBytes: number;
 }
 
 interface ChunkWriterOptions {
@@ -103,7 +104,7 @@ export class ChunkWriter {
           this.onError("chunk_write_failed");
           break;
         }
-        this.totalBytes += result.bytesWritten;
+        this.totalBytes += result.chunkSizeBytes;
       } catch {
         this.errored = true;
         this.queue = [];

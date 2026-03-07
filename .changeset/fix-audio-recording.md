@@ -2,9 +2,8 @@
 "cross-recorder": patch
 ---
 
-録音・再生の不具合を修正
+録音・再生の不具合を修正し、設計を改善
 
-- システムオーディオ録音時のノイズキャンセリング問題を修正（getDisplayMedia に audio constraints を直接指定）
-- 録音中のファイルサイズ表示が不正確だった問題を修正（累積値の二重加算を解消）
-- システムオーディオ+マイク同時録音後の再生失敗を修正（PlaybackController による堅牢なマルチトラック再生）
-- 再生時のシークバー表示・シーク操作の不具合を修正（世代管理で onended の誤発火を防止）
+- システムオーディオ録音時のノイキャン問題: getDisplayMedia に audio constraints を直接指定。冗長な applyConstraints を除去
+- ファイルサイズ表示の不正確さ: RPC の `bytesWritten` を `chunkSizeBytes` にリネームして契約を明確化
+- マルチトラック再生失敗 + シーク操作の不具合: PlaybackController を独立モジュールに切り出し、世代管理で onended の誤発火を防止。14件のユニットテストを追加

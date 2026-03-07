@@ -10,7 +10,7 @@ describe("ChunkWriter", () => {
   let mockOnError: any;
 
   beforeEach(() => {
-    mockSaveChunk = vi.fn().mockResolvedValue({ success: true, bytesWritten: 1024 });
+    mockSaveChunk = vi.fn().mockResolvedValue({ success: true, chunkSizeBytes: 1024 });
     mockOnError = vi.fn();
     writer = new ChunkWriter({
       saveChunk: mockSaveChunk,
@@ -59,7 +59,7 @@ describe("ChunkWriter", () => {
   });
 
   it("calls onError when saveChunk returns success: false", async () => {
-    mockSaveChunk.mockResolvedValueOnce({ success: false, bytesWritten: 0 });
+    mockSaveChunk.mockResolvedValueOnce({ success: false, chunkSizeBytes: 0 });
     const buffer = new ArrayBuffer(512);
     await writer.enqueue("s1", "mic", buffer);
     await writer.flush();
@@ -79,7 +79,7 @@ describe("ChunkWriter", () => {
   it("stops processing queue after error", async () => {
     mockSaveChunk
       .mockRejectedValueOnce(new Error("fail"))
-      .mockResolvedValue({ success: true, bytesWritten: 512 });
+      .mockResolvedValue({ success: true, chunkSizeBytes: 512 });
 
     const buffer = new ArrayBuffer(512);
     await writer.enqueue("s1", "mic", buffer);
@@ -92,8 +92,8 @@ describe("ChunkWriter", () => {
 
   it("tracks totalBytes from successful writes", async () => {
     mockSaveChunk
-      .mockResolvedValueOnce({ success: true, bytesWritten: 1024 })
-      .mockResolvedValueOnce({ success: true, bytesWritten: 2048 });
+      .mockResolvedValueOnce({ success: true, chunkSizeBytes: 1024 })
+      .mockResolvedValueOnce({ success: true, chunkSizeBytes: 2048 });
 
     const buffer = new ArrayBuffer(512);
     await writer.enqueue("s1", "mic", buffer);

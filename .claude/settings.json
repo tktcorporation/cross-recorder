@@ -65,7 +65,9 @@
     "claude-md-management@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true,
     "playground@claude-plugins-official": true,
-    "sonatype-guide@claude-plugins-official": true
+    "sonatype-guide@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "qodo-skills@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "anthropic-agent-skills": {

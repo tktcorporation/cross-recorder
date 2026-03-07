@@ -3,6 +3,7 @@ import { useRecordingStore } from "../stores/recordingStore.js";
 import { useRpc } from "../hooks/useRpc.js";
 import { useWaveformData } from "../hooks/useWaveformData.js";
 import { WaveformTrack } from "./WaveformTrack.js";
+import { PlaybackController } from "../audio/PlaybackController.js";
 import type { TrackInfo } from "@shared/types.js";
 
 const TRACK_HEIGHT = 48;
@@ -26,7 +27,8 @@ async function fetchTrackBuffer(
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
-  return audioContext.decodeAudioData(bytes.buffer);
+  const copy = bytes.buffer.slice(0);
+  return audioContext.decodeAudioData(copy);
 }
 
 function trackLabel(trackKind: string, channels: number): string {
@@ -51,16 +53,12 @@ export function WaveformPlayer() {
   const [containerWidth, setContainerWidth] = useState(0);
 
   const audioContextRef = useRef<AudioContext | null>(null);
-  const sourceNodesRef = useRef<AudioBufferSourceNode[]>([]);
-  const startTimeRef = useRef(0);
-  const offsetRef = useRef(0);
+  const controllerRef = useRef<PlaybackController | null>(null);
   const rafRef = useRef(0);
-  const isSeekingRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const recording = recordings.find((r) => r.id === playingRecordingId);
 
-  // Container width observation for bar count
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -76,72 +74,35 @@ export function WaveformPlayer() {
   const barCount = Math.max(1, Math.floor(containerWidth / (BAR_WIDTH + BAR_GAP)));
   const waveforms = useWaveformData(audioBuffers, barCount);
 
-  const stopSources = useCallback(() => {
-    for (const node of sourceNodesRef.current) {
-      try {
-        node.stop();
-        node.disconnect();
-      } catch {
-        // already stopped
+  const startTimeUpdates = useCallback(() => {
+    cancelAnimationFrame(rafRef.current);
+    const update = () => {
+      const ctrl = controllerRef.current;
+      if (ctrl) {
+        setCurrentTime(ctrl.currentTime);
       }
-    }
-    sourceNodesRef.current = [];
+      rafRef.current = requestAnimationFrame(update);
+    };
+    rafRef.current = requestAnimationFrame(update);
   }, []);
 
-  const startPlayback = useCallback((offset: number) => {
-    const ctx = audioContextRef.current;
-    if (!ctx || audioBuffers.length === 0) return;
-
-    isSeekingRef.current = true;
-    stopSources();
-    offsetRef.current = offset;
-
-    const nodes: AudioBufferSourceNode[] = [];
-    for (const buffer of audioBuffers) {
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(ctx.destination);
-      nodes.push(source);
-    }
-
-    if (nodes[0]) {
-      nodes[0].onended = () => {
-        if (isSeekingRef.current) return;
-        cancelAnimationFrame(rafRef.current);
-        setIsPlaying(false);
-        setCurrentTime(duration);
-        setPlayingRecordingId(null);
-      };
-    }
-
-    startTimeRef.current = ctx.currentTime;
-    for (const node of nodes) {
-      node.start(0, offset);
-    }
-    sourceNodesRef.current = nodes;
-    isSeekingRef.current = false;
-    setIsPlaying(true);
-
+  const stopTimeUpdates = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
-    const updateTime = () => {
-      if (ctx.state === "running") {
-        const elapsed = ctx.currentTime - startTimeRef.current + offset;
-        setCurrentTime(Math.min(elapsed, duration));
-      }
-      rafRef.current = requestAnimationFrame(updateTime);
-    };
-    rafRef.current = requestAnimationFrame(updateTime);
-  }, [stopSources, duration, setPlayingRecordingId, audioBuffers]);
+  }, []);
 
-  // Load audio buffers when recording changes
+  const disposePlayback = useCallback(() => {
+    stopTimeUpdates();
+    controllerRef.current?.dispose();
+    controllerRef.current = null;
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+  }, [stopTimeUpdates]);
+
   useEffect(() => {
     if (!recording) {
-      stopSources();
-      cancelAnimationFrame(rafRef.current);
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-        audioContextRef.current = null;
-      }
+      disposePlayback();
       setAudioBuffers([]);
       setTracks([]);
       setIsPlaying(false);
@@ -154,12 +115,20 @@ export function WaveformPlayer() {
     setIsLoading(true);
 
     const loadAndPlay = async () => {
+      disposePlayback();
+
       const ctx = new AudioContext();
       audioContextRef.current = ctx;
 
       const trackInfos = recording.tracks && recording.tracks.length > 0
         ? recording.tracks
-        : [{ trackKind: "mic" as const, fileName: recording.fileName, filePath: recording.filePath, channels: 2, fileSizeBytes: recording.fileSizeBytes }];
+        : [{
+            trackKind: "mic" as const,
+            fileName: recording.fileName,
+            filePath: recording.filePath,
+            channels: 2,
+            fileSizeBytes: recording.fileSizeBytes,
+          }];
 
       const buffers = await Promise.all(
         trackInfos.map((track) => fetchTrackBuffer(request, track, ctx)),
@@ -172,46 +141,22 @@ export function WaveformPlayer() {
 
       setTracks(trackInfos);
       setAudioBuffers(buffers);
-      const maxDuration = Math.max(...buffers.map((b) => b.duration));
-      setDuration(maxDuration);
+
+      const controller = new PlaybackController(ctx, buffers);
+      controllerRef.current = controller;
+      setDuration(controller.duration);
       setIsLoading(false);
 
-      // Auto-play
-      offsetRef.current = 0;
-      startTimeRef.current = ctx.currentTime;
-
-      const nodes: AudioBufferSourceNode[] = [];
-      for (const buffer of buffers) {
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        nodes.push(source);
-      }
-
-      if (nodes[0]) {
-        nodes[0].onended = () => {
-          if (isSeekingRef.current) return;
-          cancelAnimationFrame(rafRef.current);
-          setIsPlaying(false);
-          setCurrentTime(maxDuration);
-          setPlayingRecordingId(null);
-        };
-      }
-
-      for (const node of nodes) {
-        node.start(0, 0);
-      }
-      sourceNodesRef.current = nodes;
-      setIsPlaying(true);
-
-      const updateTime = () => {
-        if (ctx.state === "running") {
-          const elapsed = ctx.currentTime - startTimeRef.current;
-          setCurrentTime(Math.min(elapsed, maxDuration));
-        }
-        rafRef.current = requestAnimationFrame(updateTime);
+      controller.onEnded = () => {
+        stopTimeUpdates();
+        setIsPlaying(false);
+        setCurrentTime(controller.duration);
+        setPlayingRecordingId(null);
       };
-      rafRef.current = requestAnimationFrame(updateTime);
+
+      controller.play(0);
+      setIsPlaying(true);
+      startTimeUpdates();
     };
 
     loadAndPlay().catch((err) => {
@@ -226,55 +171,43 @@ export function WaveformPlayer() {
   }, [recording?.id]);
 
   const handlePlayPause = useCallback(() => {
-    const ctx = audioContextRef.current;
-    if (!ctx) return;
+    const ctrl = controllerRef.current;
+    if (!ctrl) return;
 
     if (isPlaying) {
-      const elapsed = ctx.currentTime - startTimeRef.current + offsetRef.current;
-      ctx.suspend();
-      cancelAnimationFrame(rafRef.current);
+      ctrl.pause();
+      stopTimeUpdates();
       setIsPlaying(false);
-      setCurrentTime(elapsed);
-      offsetRef.current = elapsed;
+      setCurrentTime(ctrl.currentTime);
     } else {
-      if (ctx.state === "suspended") {
-        ctx.resume().then(() => {
-          startTimeRef.current = ctx.currentTime;
-          setIsPlaying(true);
-          const updateTime = () => {
-            if (ctx.state === "running") {
-              const elapsed = ctx.currentTime - startTimeRef.current + offsetRef.current;
-              setCurrentTime(Math.min(elapsed, duration));
-            }
-            rafRef.current = requestAnimationFrame(updateTime);
-          };
-          rafRef.current = requestAnimationFrame(updateTime);
-        });
+      if (ctrl.currentTime >= ctrl.duration) {
+        ctrl.play(0);
       } else {
-        startPlayback(offsetRef.current);
+        ctrl.play();
       }
+      setIsPlaying(true);
+      startTimeUpdates();
     }
-  }, [isPlaying, duration, startPlayback]);
+  }, [isPlaying, startTimeUpdates, stopTimeUpdates]);
 
   const handleSeek = useCallback((progress: number) => {
-    const time = progress * duration;
+    const ctrl = controllerRef.current;
+    if (!ctrl) return;
+
+    const time = progress * ctrl.duration;
+    ctrl.seek(time);
     setCurrentTime(time);
 
     if (isPlaying) {
-      startPlayback(time);
-    } else {
-      offsetRef.current = time;
+      startTimeUpdates();
     }
-  }, [isPlaying, duration, startPlayback]);
+  }, [isPlaying, startTimeUpdates]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      cancelAnimationFrame(rafRef.current);
-      stopSources();
-      audioContextRef.current?.close();
+      disposePlayback();
     };
-  }, [stopSources]);
+  }, [disposePlayback]);
 
   if (!recording) return null;
 
@@ -282,7 +215,6 @@ export function WaveformPlayer() {
 
   return (
     <div ref={containerRef} className="rounded-lg bg-gray-800 p-4">
-      {/* Waveform tracks */}
       {isLoading ? (
         <div className="flex items-center justify-center py-4">
           <span className="text-xs text-gray-400">Loading...</span>
@@ -302,7 +234,6 @@ export function WaveformPlayer() {
         </div>
       )}
 
-      {/* Controls */}
       <div className="mt-3 flex items-center gap-3">
         <button
           type="button"

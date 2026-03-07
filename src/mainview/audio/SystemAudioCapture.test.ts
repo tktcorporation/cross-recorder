@@ -133,22 +133,28 @@ describe("SystemAudioCapture", () => {
     expect(mockStream.getTracks).toHaveBeenCalled();
   });
 
-  it("disables audio processing on captured tracks", async () => {
+  it("passes audio processing constraints via getDisplayMedia (not applyConstraints)", async () => {
     const audioTrack = createMockTrack("audio");
     const mockStream = createMockStream([audioTrack]);
+    const getDisplayMedia = vi.fn().mockResolvedValue(mockStream);
     vi.stubGlobal("navigator", {
-      mediaDevices: {
-        getDisplayMedia: vi.fn().mockResolvedValue(mockStream),
-      },
+      mediaDevices: { getDisplayMedia },
     });
 
     await capture.start();
 
-    expect(audioTrack.applyConstraints).toHaveBeenCalledWith({
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false,
-    });
+    // Constraints should be passed upfront in getDisplayMedia call
+    expect(getDisplayMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audio: expect.objectContaining({
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        }),
+      }),
+    );
+    // applyConstraints should NOT be called — upfront is sufficient
+    expect(audioTrack.applyConstraints).not.toHaveBeenCalled();
   });
 
   it("stop() stops all tracks and clears stream", async () => {
@@ -166,30 +172,32 @@ describe("SystemAudioCapture", () => {
     expect(audioTrack.stop).toHaveBeenCalled();
   });
 
-  it("continues recording even when applyConstraints fails (best-effort)", async () => {
-    const mockTrack = {
-      kind: "audio",
-      stop: vi.fn(),
-      applyConstraints: vi.fn().mockRejectedValue(new Error("Constraint error")),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    };
-    const mockStream = {
-      getAudioTracks: () => [mockTrack],
-      getVideoTracks: () => [],
-      getTracks: () => [mockTrack],
-    };
+  it("falls back to video: true when audio constraints cause fallback", async () => {
+    const audioTrack = createMockTrack("audio");
+    const mockStream = createMockStream([audioTrack]);
+    const getDisplayMedia = vi.fn()
+      .mockRejectedValueOnce(new DOMException("not supported", "NotSupportedError"))
+      .mockResolvedValueOnce(mockStream);
     vi.stubGlobal("navigator", {
-      mediaDevices: {
-        getDisplayMedia: vi.fn().mockResolvedValue(mockStream),
-      },
+      mediaDevices: { getDisplayMedia },
     });
 
     const capture = new SystemAudioCapture();
-    // Should NOT throw — applyConstraints failure is best-effort
     const stream = await capture.start();
     expect(stream).toBe(mockStream);
-    expect(mockTrack.applyConstraints).toHaveBeenCalled();
+    // Both calls should pass audio constraints (not just `true`)
+    expect(getDisplayMedia).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        audio: expect.objectContaining({ noiseSuppression: false }),
+      }),
+    );
+    expect(getDisplayMedia).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        audio: expect.objectContaining({ noiseSuppression: false }),
+      }),
+    );
   });
 
   it("stop() is safe to call when no stream exists", () => {

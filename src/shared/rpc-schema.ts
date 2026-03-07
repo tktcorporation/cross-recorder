@@ -41,7 +41,7 @@ export type CrossRecorderRPC = {
           chunkIndex: number;
           pcmData: string;
         };
-        response: { success: boolean; bytesWritten: number };
+        response: { success: boolean; chunkSizeBytes: number };
       };
       finalizeRecording: {
         params: {

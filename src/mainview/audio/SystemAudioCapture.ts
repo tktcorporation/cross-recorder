@@ -24,20 +24,9 @@ export class SystemAudioCapture {
       );
     }
 
-    // Disable audio processing to capture raw system audio.
-    // Best-effort: some environments (e.g. CEF) may not support these
-    // constraints, so we catch and ignore OverconstrainedError.
-    for (const track of this.stream.getAudioTracks()) {
-      try {
-        await track.applyConstraints({
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        });
-      } catch {
-        // Constraint not supported — continue with default processing
-      }
-    }
+    // Audio processing (noise suppression, echo cancellation, auto gain)
+    // is disabled upfront in acquireDisplayMedia() via audio constraints.
+    // No need for applyConstraints() here — that approach was unreliable.
 
     // Listen for track ended events (e.g. display session terminated by OS)
     this.boundTrackEndedHandler = () => {
@@ -55,9 +44,18 @@ export class SystemAudioCapture {
   }
 
   private async acquireDisplayMedia(): Promise<MediaStream> {
+    // Disable all audio processing upfront so the browser never applies
+    // noise suppression / echo cancellation / auto gain to system audio.
+    // applyConstraints() after the fact is unreliable in some environments.
+    const audioConstraints = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    };
+
     try {
       return await navigator.mediaDevices.getDisplayMedia({
-        audio: true,
+        audio: audioConstraints,
         video: false,
         systemAudio: "include",
       } as DisplayMediaStreamOptions);
@@ -68,7 +66,7 @@ export class SystemAudioCapture {
       }
       // video: false may not be supported (e.g. CEF); fall back to video: true
       return await navigator.mediaDevices.getDisplayMedia({
-        audio: true,
+        audio: audioConstraints,
         video: true,
         systemAudio: "include",
       } as DisplayMediaStreamOptions);

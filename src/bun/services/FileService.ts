@@ -125,7 +125,9 @@ function writeChunkToTrack(
 
   fs.writeSync(track.fd, buffer, 0, buffer.length);
   track.bytesWritten += buffer.length;
-  return { success: true, bytesWritten: track.bytesWritten };
+  // Return the number of bytes written in THIS chunk (not cumulative),
+  // because ChunkWriter accumulates the total on its side.
+  return { success: true, bytesWritten: buffer.length };
 }
 
 /** Synchronous write for NativeSystemAudioCapture callback. */

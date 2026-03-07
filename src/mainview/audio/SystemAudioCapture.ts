@@ -55,9 +55,18 @@ export class SystemAudioCapture {
   }
 
   private async acquireDisplayMedia(): Promise<MediaStream> {
+    // Disable all audio processing upfront so the browser never applies
+    // noise suppression / echo cancellation / auto gain to system audio.
+    // applyConstraints() after the fact is unreliable in some environments.
+    const audioConstraints = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    };
+
     try {
       return await navigator.mediaDevices.getDisplayMedia({
-        audio: true,
+        audio: audioConstraints,
         video: false,
         systemAudio: "include",
       } as DisplayMediaStreamOptions);
@@ -68,7 +77,7 @@ export class SystemAudioCapture {
       }
       // video: false may not be supported (e.g. CEF); fall back to video: true
       return await navigator.mediaDevices.getDisplayMedia({
-        audio: true,
+        audio: audioConstraints,
         video: true,
         systemAudio: "include",
       } as DisplayMediaStreamOptions);

@@ -1,5 +1,11 @@
 # cross-recorder
 
+## 0.8.3
+
+### Patch Changes
+
+- [#33](https://github.com/tktcorporation/cross-recorder/pull/33) [`0a22bda`](https://github.com/tktcorporation/cross-recorder/commit/0a22bda0fd464c7b32d84ef5e208a3fa5cd0ccc5) Thanks [@tktcorporation](https://github.com/tktcorporation)! - native バイナリのビルドを CI の既存 macOS ジョブに統合し、不要な別 workflow・download スクリプトを削除
+
 ## 0.8.2
 
 ### Patch Changes

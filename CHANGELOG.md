@@ -1,5 +1,15 @@
 # cross-recorder
 
+## 0.8.2
+
+### Patch Changes
+
+- [#31](https://github.com/tktcorporation/cross-recorder/pull/31) [`a417426`](https://github.com/tktcorporation/cross-recorder/commit/a4174260a0700c6bf76d9731056b11c5050aa54b) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 録音・再生の不具合を修正し、設計を改善
+
+  - システムオーディオ録音時のノイキャン問題: getDisplayMedia に audio constraints を直接指定。冗長な applyConstraints を除去
+  - ファイルサイズ表示の不正確さ: RPC の `bytesWritten` を `chunkSizeBytes` にリネームして契約を明確化
+  - マルチトラック再生失敗 + シーク操作の不具合: PlaybackController を独立モジュールに切り出し、世代管理で onended の誤発火を防止。14 件のユニットテストを追加
+
 ## 0.8.1
 
 ### Patch Changes

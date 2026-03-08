@@ -3,8 +3,10 @@ import { useCallback, useEffect, useRef } from "react";
 const BAR_WIDTH = 2;
 const BAR_GAP = 1;
 const MIN_BAR_HEIGHT = 2;
-const PLAYED_COLOR = "#3b82f6"; // blue-500
-const UNPLAYED_COLOR = "#6b7280"; // gray-500
+
+/** CSS変数が取得できなかった場合のフォールバック値 */
+const FALLBACK_PLAYED_COLOR = "hsl(217, 91%, 60%)";
+const FALLBACK_UNPLAYED_COLOR = "hsl(217, 33%, 20%)";
 
 type Props = {
   label: string;
@@ -17,6 +19,18 @@ type Props = {
 export function WaveformTrack({ label, bars, progress, height, onSeek }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const playedColorRef = useRef(FALLBACK_PLAYED_COLOR);
+  const unplayedColorRef = useRef(FALLBACK_UNPLAYED_COLOR);
+
+  /** CSS変数から再生済み・未再生の色を取得する */
+  const resolveColors = useCallback(() => {
+    const root = document.documentElement;
+    const style = getComputedStyle(root);
+    const playback = style.getPropertyValue("--playback").trim();
+    const border = style.getPropertyValue("--border").trim();
+    if (playback) playedColorRef.current = `hsl(${playback})`;
+    if (border) unplayedColorRef.current = `hsl(${border})`;
+  }, []);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -45,7 +59,7 @@ export function WaveformTrack({ label, bars, progress, height, onSeek }: Props) 
       const barHeight = Math.max(MIN_BAR_HEIGHT, bars[i]! * maxBarHeight);
       const halfBar = barHeight / 2;
 
-      ctx.fillStyle = x < progressX ? PLAYED_COLOR : UNPLAYED_COLOR;
+      ctx.fillStyle = x < progressX ? playedColorRef.current : unplayedColorRef.current;
       ctx.beginPath();
       ctx.roundRect(x, centerY - halfBar, BAR_WIDTH, barHeight, 1);
       ctx.fill();
@@ -53,8 +67,9 @@ export function WaveformTrack({ label, bars, progress, height, onSeek }: Props) 
   }, [bars, progress]);
 
   useEffect(() => {
+    resolveColors();
     draw();
-  }, [draw]);
+  }, [draw, resolveColors]);
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -70,7 +85,7 @@ export function WaveformTrack({ label, bars, progress, height, onSeek }: Props) 
 
   return (
     <div ref={containerRef} className="flex flex-col">
-      <span className="mb-1 text-[10px] font-medium text-gray-400">
+      <span className="mb-1 text-[10px] font-medium tracking-wide text-muted-foreground">
         {label}
       </span>
       <canvas

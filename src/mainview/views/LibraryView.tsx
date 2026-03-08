@@ -58,7 +58,7 @@ export function LibraryView() {
         >
           &larr; Back
         </Button>
-        <h1 className="text-sm font-semibold text-foreground">Library</h1>
+        <h1 className="text-sm font-semibold tracking-tight text-foreground">Library</h1>
         <span className="min-w-[60px] text-right text-xs text-muted-foreground">
           {recordings.length > 0 ? `${recordings.length}` : ""}
         </span>

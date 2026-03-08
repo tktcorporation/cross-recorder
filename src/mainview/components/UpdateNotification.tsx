@@ -162,7 +162,7 @@ export function UpdateNotification() {
         <motion.button
           key="available"
           onClick={handleDownload}
-          className="rounded bg-playback px-2 py-0.5 text-xs text-white hover:bg-playback/90"
+          className="rounded bg-playback px-2 py-0.5 text-xs text-playback-foreground hover:bg-playback/90"
           {...fadeVariants}
           transition={fadeTransition}
         >
@@ -197,7 +197,7 @@ export function UpdateNotification() {
         <motion.button
           key="ready"
           onClick={handleApply}
-          className="rounded bg-green-600 px-2 py-0.5 text-xs text-white hover:bg-green-500"
+          className="rounded bg-green-600 px-2 py-0.5 text-xs text-foreground hover:bg-green-500"
           {...fadeVariants}
           transition={fadeTransition}
         >

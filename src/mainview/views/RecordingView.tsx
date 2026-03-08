@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useViewStore } from "../stores/viewStore.js";
-import {
-  useRecordingStore,
-  selectRecordingState,
-} from "../stores/recordingStore.js";
+import { useRecordingStore } from "../stores/recordingStore.js";
 import { useRecording } from "../hooks/useRecording.js";
 import { useAudioLevel } from "../hooks/useAudioLevel.js";
 import { PulseRings } from "../components/recording/PulseRings.js";

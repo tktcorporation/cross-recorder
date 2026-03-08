@@ -1,5 +1,5 @@
 ---
-"cross-recorder": minor
+"cross-recorder": patch
 ---
 
-Windows向けNSISインストーラー(.exe)をリリースに追加。スタートメニュー登録・アンインストーラー付き。
+Windows向けElectrobun生成インストーラー(Setup.zip)をGitHub Releaseに含めるよう修正。

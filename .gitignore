@@ -41,3 +41,4 @@ recordings/
 *.bak
 
 build/
+artifacts/

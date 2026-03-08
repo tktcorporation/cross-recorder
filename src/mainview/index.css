@@ -3,8 +3,33 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --background: 222 47% 5%;
+    --foreground: 210 40% 98%;
+    --card: 217 33% 10%;
+    --card-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222 47% 5%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 55%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
+    --ring: 212 92% 45%;
+    --radius: 0.75rem;
+    --recording: 0 84% 60%;
+    --recording-foreground: 210 40% 98%;
+    --playback: 217 91% 60%;
+    --playback-foreground: 210 40% 98%;
+  }
+
   body {
-    @apply antialiased;
+    @apply bg-background text-foreground antialiased;
     -webkit-app-region: drag;
   }
 

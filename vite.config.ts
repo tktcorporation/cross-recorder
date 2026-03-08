@@ -10,6 +10,7 @@ export default defineConfig({
     alias: {
       "@shared": path.resolve(__dirname, "src/shared"),
       "@audio": path.resolve(__dirname, "src/mainview/audio"),
+      "@": path.resolve(__dirname, "src/mainview"),
     },
   },
   build: {

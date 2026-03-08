@@ -19,7 +19,8 @@
     "noUncheckedIndexedAccess": true,
     "paths": {
       "@shared/*": ["./src/shared/*"],
-      "@audio/*": ["./src/mainview/audio/*"]
+      "@audio/*": ["./src/mainview/audio/*"],
+      "@/*": ["./src/mainview/*"]
     },
     "baseUrl": "."
   },

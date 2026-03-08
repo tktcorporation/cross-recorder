@@ -32,7 +32,3 @@ description = "Get Playwright Chromium executable path"
 [tasks.berm]
 run = "npx @tktco/berm@latest"
 description = "Run berm CLI"
-
-[tasks.create-devenv]
-run = "npx @tktco/create-devenv@latest"
-description = "Run create-devenv CLI"

@@ -1,5 +1,11 @@
 # cross-recorder
 
+## 0.9.0
+
+### Minor Changes
+
+- [#35](https://github.com/tktcorporation/cross-recorder/pull/35) [`ac792ef`](https://github.com/tktcorporation/cross-recorder/commit/ac792ef636d83e945b8c06d07e01da82aeac3d7d) Thanks [@tktcorporation](https://github.com/tktcorporation)! - UI を大幅改善: シングルビュー切替型レイアウト、shadcn/ui 導入、Framer Motion アニメーション、パルスリング付き録音ボタン、横スクロール波形、カード型ライブラリ、録音後シームレス再生
+
 ## 0.8.3
 
 ### Patch Changes

@@ -1,6 +1,25 @@
 import { useEffect, useCallback, useRef } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { rpc } from "../rpc.js";
 import { useUpdateStore } from "../stores/updateStore.js";
+
+/**
+ * アプリのアップデート状態を表示・操作するコンポーネント。
+ *
+ * 背景: Electrobun のアップデート機能と連携し、バージョン表示・確認・
+ * ダウンロード・適用の UI を提供する。状態遷移時にフェードアニメーションを適用。
+ *
+ * 呼び出し元: App.tsx (フッター領域)
+ */
+
+/** 状態遷移時のフェードアニメーション設定 */
+const fadeVariants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+};
+
+const fadeTransition = { duration: 0.15 };
 
 export function UpdateNotification() {
   const {
@@ -77,112 +96,156 @@ export function UpdateNotification() {
     await handleCheckForUpdate();
   }, [handleCheckForUpdate]);
 
-  if (updateStatus === "idle") {
-    return currentVersion ? (
-      <button
-        onClick={handleCheckForUpdate}
-        className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-        title="アップデートを確認"
-      >
-        v{currentVersion}
-      </button>
-    ) : null;
-  }
-
-  if (updateStatus === "checking") {
-    return (
-      <span className="flex items-center gap-1.5 text-xs text-gray-400">
-        <svg
-          className="h-3 w-3 animate-spin"
-          viewBox="0 0 24 24"
-          fill="none"
+  const renderContent = () => {
+    if (updateStatus === "idle") {
+      return currentVersion ? (
+        <motion.button
+          key="idle"
+          onClick={handleCheckForUpdate}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          title="アップデートを確認"
+          {...fadeVariants}
+          transition={fadeTransition}
         >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-          />
-        </svg>
-        確認中...
-      </span>
-    );
-  }
+          v{currentVersion}
+        </motion.button>
+      ) : null;
+    }
 
-  if (updateStatus === "up-to-date") {
-    return (
-      <span className="text-xs text-green-400">
-        最新版です (v{currentVersion})
-      </span>
-    );
-  }
-
-  if (updateStatus === "available") {
-    return (
-      <button
-        onClick={handleDownload}
-        className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-500"
-      >
-        更新あり
-      </button>
-    );
-  }
-
-  if (updateStatus === "downloading") {
-    return (
-      <div className="flex items-center gap-2">
-        <div className="h-1.5 w-20 overflow-hidden rounded-full bg-gray-700">
-          <div
-            className="h-full rounded-full bg-blue-500 transition-all"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <span className="text-xs text-gray-400">
-          {progress > 0 ? `${progress}%` : "ダウンロード中..."}
-        </span>
-      </div>
-    );
-  }
-
-  if (updateStatus === "ready") {
-    return (
-      <button
-        onClick={handleApply}
-        className="rounded bg-green-600 px-2 py-0.5 text-xs text-white hover:bg-green-500"
-      >
-        再起動して更新
-      </button>
-    );
-  }
-
-  if (updateStatus === "applying") {
-    return (
-      <span className="text-xs text-yellow-400">更新を適用中...</span>
-    );
-  }
-
-  if (updateStatus === "error") {
-    return (
-      <div className="flex items-center gap-1">
-        <span className="max-w-32 truncate text-xs text-red-400" title={errorMessage}>
-          更新エラー
-        </span>
-        <button
-          onClick={handleRetry}
-          className="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300 hover:bg-gray-600"
+    if (updateStatus === "checking") {
+      return (
+        <motion.span
+          key="checking"
+          className="flex items-center gap-1.5 text-xs text-muted-foreground"
+          {...fadeVariants}
+          transition={fadeTransition}
         >
-          リトライ
-        </button>
-      </div>
-    );
-  }
+          <svg
+            className="h-3 w-3 animate-spin"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            />
+          </svg>
+          確認中...
+        </motion.span>
+      );
+    }
 
-  return null;
+    if (updateStatus === "up-to-date") {
+      return (
+        <motion.span
+          key="up-to-date"
+          className="text-xs text-green-400"
+          {...fadeVariants}
+          transition={fadeTransition}
+        >
+          最新版です (v{currentVersion})
+        </motion.span>
+      );
+    }
+
+    if (updateStatus === "available") {
+      return (
+        <motion.button
+          key="available"
+          onClick={handleDownload}
+          className="rounded bg-playback px-2 py-0.5 text-xs text-white hover:bg-playback/90"
+          {...fadeVariants}
+          transition={fadeTransition}
+        >
+          更新あり
+        </motion.button>
+      );
+    }
+
+    if (updateStatus === "downloading") {
+      return (
+        <motion.div
+          key="downloading"
+          className="flex items-center gap-2"
+          {...fadeVariants}
+          transition={fadeTransition}
+        >
+          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-secondary">
+            <div
+              className="h-full rounded-full bg-playback transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {progress > 0 ? `${progress}%` : "ダウンロード中..."}
+          </span>
+        </motion.div>
+      );
+    }
+
+    if (updateStatus === "ready") {
+      return (
+        <motion.button
+          key="ready"
+          onClick={handleApply}
+          className="rounded bg-green-600 px-2 py-0.5 text-xs text-white hover:bg-green-500"
+          {...fadeVariants}
+          transition={fadeTransition}
+        >
+          再起動して更新
+        </motion.button>
+      );
+    }
+
+    if (updateStatus === "applying") {
+      return (
+        <motion.span
+          key="applying"
+          className="text-xs text-yellow-400"
+          {...fadeVariants}
+          transition={fadeTransition}
+        >
+          更新を適用中...
+        </motion.span>
+      );
+    }
+
+    if (updateStatus === "error") {
+      return (
+        <motion.div
+          key="error"
+          className="flex items-center gap-1"
+          {...fadeVariants}
+          transition={fadeTransition}
+        >
+          <span className="max-w-32 truncate text-xs text-destructive" title={errorMessage}>
+            更新エラー
+          </span>
+          <button
+            onClick={handleRetry}
+            className="rounded bg-secondary px-1.5 py-0.5 text-xs text-secondary-foreground hover:bg-secondary/80"
+          >
+            リトライ
+          </button>
+        </motion.div>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <AnimatePresence mode="wait">
+      {renderContent()}
+    </AnimatePresence>
+  );
 }

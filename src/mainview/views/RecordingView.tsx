@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useViewStore } from "../stores/viewStore.js";
 import {
@@ -10,12 +11,17 @@ import { PulseRings } from "../components/recording/PulseRings.js";
 import { RecordButton } from "../components/recording/RecordButton.js";
 import { AudioSourceControls } from "../components/recording/AudioSourceControls.js";
 import { RecordingWaveform } from "../components/recording/RecordingWaveform.js";
+import { PostRecordingPlayer } from "../components/recording/PostRecordingPlayer.js";
+import type { RecordingMetadata } from "@shared/types.js";
 
 /**
  * 録音画面。RecordButton, PulseRings, AudioSourceControls, RecordingWaveform を統合し、
  * 録音セッションのライフサイクル全体を1画面で管理する。
  *
- * レイアウト: ヘッダー(Library遷移) → 中央(RecordButton+PulseRings) → タイマー → 波形 → エラー → ソースコントロール
+ * 録音停止後は PostRecordingPlayer を表示し、その場で録音結果を再生・確認できる。
+ * 新規録音開始時または「View in Library」クリック時に PostRecordingPlayer を閉じる。
+ *
+ * レイアウト: ヘッダー(Library遷移) → 中央(RecordButton+PulseRings) → タイマー → 波形/PostRecordingPlayer → エラー → ソースコントロール
  */
 
 /** 経過ミリ秒をHH:MM:SS形式にフォーマットする */
@@ -52,12 +58,49 @@ export function RecordingView() {
   const isIdle = recordingState === "idle";
   const noSourceSelected = !micEnabled && !systemAudioEnabled;
 
+  /**
+   * 録音停止後に表示する直前の録音。
+   * stopping → idle 遷移時に recordings 配列の先頭（最新）を設定し、
+   * 新規録音開始時や「View in Library」遷移時にクリアする。
+   */
+  const [lastRecording, setLastRecording] =
+    useState<RecordingMetadata | null>(null);
+  /**
+   * 直前の recordingState を追跡し、stopping → idle 遷移を検出する。
+   * useRef を使うことで再レンダリングを発生させずに前回値を保持する。
+   */
+  const prevRecordingStateRef = useRef(recordingState);
+
+  // stopping → idle 遷移を検出し、最新の録音を PostRecordingPlayer に渡す
+  useEffect(() => {
+    const prevState = prevRecordingStateRef.current;
+    prevRecordingStateRef.current = recordingState;
+
+    if (prevState === "stopping" && recordingState === "idle") {
+      // recordings は新しい順 (addRecording が先頭に追加) なので [0] が最新
+      if (recordings.length > 0) {
+        setLastRecording(recordings[0]!);
+      }
+    }
+  }, [recordingState, recordings]);
+
   const handleRecordClick = () => {
     if (isIdle) {
+      // 新規録音開始時に PostRecordingPlayer を閉じる
+      setLastRecording(null);
       startRecording();
     } else if (isRecording) {
       stopRecording();
     }
+  };
+
+  /**
+   * 「View in Library」クリック時: PostRecordingPlayer を閉じてライブラリへ遷移。
+   * onDismiss コールバックとして PostRecordingPlayer に渡す。
+   */
+  const handleViewInLibrary = () => {
+    setLastRecording(null);
+    setView("library");
   };
 
   return (
@@ -100,13 +143,31 @@ export function RecordingView() {
           {formatTime(elapsedMs)}
         </p>
 
-        {/* 波形 — 録音中のみ表示 */}
+        {/* 波形 — 録音中のみ表示 / 停止後は PostRecordingPlayer を表示 */}
         <div className="w-full max-w-sm">
-          <RecordingWaveform
-            micLevel={micLevel}
-            systemLevel={systemLevel}
-            isRecording={isRecording}
-          />
+          <AnimatePresence mode="wait">
+            {isRecording ? (
+              <motion.div
+                key="recording-waveform"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <RecordingWaveform
+                  micLevel={micLevel}
+                  systemLevel={systemLevel}
+                  isRecording={isRecording}
+                />
+              </motion.div>
+            ) : lastRecording ? (
+              <PostRecordingPlayer
+                key={`post-${lastRecording.id}`}
+                recording={lastRecording}
+                onDismiss={handleViewInLibrary}
+              />
+            ) : null}
+          </AnimatePresence>
         </div>
 
         {/* エラーメッセージ */}

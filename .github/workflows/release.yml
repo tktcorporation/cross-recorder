@@ -140,41 +140,6 @@ jobs:
           Write-Output "Found build dir: $($buildDir.FullName)"
           Compress-Archive -Path $buildDir.FullName -DestinationPath "CrossRecorder-${{ needs.changesets.outputs.version }}-windows-x64.zip"
 
-      - name: Build NSIS installer (Windows)
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        run: |
-          # ビルド出力ディレクトリを特定
-          $buildDir = Get-ChildItem -Path build -Recurse -Directory | Where-Object { $_.Name -match "^Cross\s?Recorder" } | Select-Object -First 1
-          if (-not $buildDir) {
-            Write-Error "Build directory not found for NSIS"
-            exit 1
-          }
-          Write-Output "NSIS source dir: $($buildDir.FullName)"
-
-          # NSIS をインストール（windows-latest runner にはプリインストールされている）
-          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
-            choco install nsis -y
-            $env:PATH += ";C:\Program Files (x86)\NSIS"
-          }
-
-          # インストーラーを生成
-          makensis /DVERSION=${{ needs.changesets.outputs.version }} /DSOURCE_DIR="$($buildDir.FullName)" scripts\installer.nsi
-
-          # 生成されたインストーラーをワークスペースルートに移動
-          Move-Item "scripts\CrossRecorder-${{ needs.changesets.outputs.version }}-windows-x64-setup.exe" "." -ErrorAction SilentlyContinue
-          if (-not (Test-Path "CrossRecorder-${{ needs.changesets.outputs.version }}-windows-x64-setup.exe")) {
-            # NSIS の OutFile がスクリプトのあるディレクトリ基準でない場合に備える
-            $setupExe = Get-ChildItem -Path . -Recurse -Filter "CrossRecorder-*-setup.exe" | Select-Object -First 1
-            if ($setupExe) {
-              Move-Item $setupExe.FullName "." -ErrorAction SilentlyContinue
-            } else {
-              Write-Error "NSIS installer not found"
-              exit 1
-            }
-          }
-          Write-Output "NSIS installer created successfully"
-
       - name: Generate updater artifacts (macOS)
         if: matrix.platform == 'macos' && env.ELECTROBUN_ARTIFACTS != 'true'
         shell: bash
@@ -315,7 +280,6 @@ jobs:
           path: |
             CrossRecorder-*.tar.gz
             CrossRecorder-*.zip
-            CrossRecorder-*-setup.exe
             *-update.json
             *.tar.zst
           retention-days: 30
@@ -351,7 +315,6 @@ jobs:
           files: |
             artifacts/**/*.tar.gz
             artifacts/**/*.zip
-            artifacts/**/*-setup.exe
             artifacts/**/*-update.json
             artifacts/**/*.tar.zst
         env:

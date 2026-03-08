@@ -27,9 +27,9 @@ export function PulseRings({
 
   return (
     <>
-      {/* マイク入力リング (recording color / red) */}
+      {/* マイク入力リング (recording color / red) — ボタンより少し大きく配置 */}
       <motion.div
-        className="absolute inset-0 rounded-full bg-recording"
+        className="absolute inset-4 rounded-full bg-recording"
         animate={{
           scale: toScale(micLevel),
           opacity: toOpacity(micLevel),
@@ -37,9 +37,9 @@ export function PulseRings({
         transition={{ type: "spring", stiffness: 300, damping: 25 }}
         aria-hidden
       />
-      {/* システム音声リング (playback color / blue) — 外側に配置 */}
+      {/* システム音声リング (playback color / blue) — 最も外側 */}
       <motion.div
-        className="absolute -inset-1 rounded-full bg-playback"
+        className="absolute inset-2 rounded-full bg-playback"
         animate={{
           scale: toScale(systemLevel),
           opacity: toOpacity(systemLevel),

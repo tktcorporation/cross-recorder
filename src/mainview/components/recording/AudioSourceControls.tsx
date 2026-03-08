@@ -26,7 +26,7 @@ export function AudioSourceControls({ disabled }: AudioSourceControlsProps) {
   const noSourceSelected = !micEnabled && !systemAudioEnabled;
 
   return (
-    <div className="flex flex-col gap-3 border-t border-border px-4 py-4">
+    <div className="flex flex-col gap-3 px-4 py-3">
       {/* マイク行 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

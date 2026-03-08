@@ -102,7 +102,7 @@ export function UpdateNotification() {
         <motion.button
           key="idle"
           onClick={handleCheckForUpdate}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:rounded-sm"
           title="アップデートを確認"
           {...fadeVariants}
           transition={fadeTransition}
@@ -162,7 +162,7 @@ export function UpdateNotification() {
         <motion.button
           key="available"
           onClick={handleDownload}
-          className="rounded bg-playback px-2 py-0.5 text-xs text-playback-foreground hover:bg-playback/90"
+          className="rounded bg-playback px-2 py-0.5 text-xs text-playback-foreground hover:bg-playback/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           {...fadeVariants}
           transition={fadeTransition}
         >
@@ -197,7 +197,7 @@ export function UpdateNotification() {
         <motion.button
           key="ready"
           onClick={handleApply}
-          className="rounded bg-green-600 px-2 py-0.5 text-xs text-foreground hover:bg-green-500"
+          className="rounded bg-green-600 px-2 py-0.5 text-xs text-foreground hover:bg-green-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           {...fadeVariants}
           transition={fadeTransition}
         >
@@ -232,7 +232,7 @@ export function UpdateNotification() {
           </span>
           <button
             onClick={handleRetry}
-            className="rounded bg-secondary px-1.5 py-0.5 text-xs text-secondary-foreground hover:bg-secondary/80"
+            className="rounded bg-secondary px-1.5 py-0.5 text-xs text-secondary-foreground hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             リトライ
           </button>

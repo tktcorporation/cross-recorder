@@ -1,5 +1,13 @@
 # cross-recorder
 
+## 0.9.1
+
+### Patch Changes
+
+- [#39](https://github.com/tktcorporation/cross-recorder/pull/39) [`f2aa3c3`](https://github.com/tktcorporation/cross-recorder/commit/f2aa3c3e9619e93a0fe7fce3d239a0f292352c71) Thanks [@tktcorporation](https://github.com/tktcorporation)! - README をモダンなデザインに刷新し、アプリスクリーンショットを追加
+
+- [#37](https://github.com/tktcorporation/cross-recorder/pull/37) [`e8db399`](https://github.com/tktcorporation/cross-recorder/commit/e8db399a8be0f05554584f992b737756780a06f0) Thanks [@tktcorporation](https://github.com/tktcorporation)! - Windows 向け Electrobun 生成インストーラー(Setup.zip)を GitHub Release に含めるよう修正。
+
 ## 0.9.0
 
 ### Minor Changes

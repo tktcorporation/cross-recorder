@@ -280,6 +280,7 @@ jobs:
           path: |
             CrossRecorder-*.tar.gz
             CrossRecorder-*.zip
+            *-Setup.zip
             *-update.json
             *.tar.zst
           retention-days: 30

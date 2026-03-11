@@ -11,6 +11,7 @@ const { mockPipeline, mockMicCapture, mockSystemCapture, mockChunkWriter } =
       addTrack: vi.fn(),
       stop: vi.fn(),
       getAnalyserForTrack: vi.fn().mockReturnValue(null),
+      getSampleRate: vi.fn().mockReturnValue(48000),
     },
     mockMicCapture: {
       start: vi.fn().mockResolvedValue({ getTracks: () => [] }),
@@ -37,6 +38,7 @@ vi.mock("./RecordingPipeline.js", () => {
       addTrack = mockPipeline.addTrack;
       stop = mockPipeline.stop;
       getAnalyserForTrack = mockPipeline.getAnalyserForTrack;
+      getSampleRate = mockPipeline.getSampleRate;
     },
   };
 });

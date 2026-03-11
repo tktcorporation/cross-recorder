@@ -2,6 +2,19 @@ export class SystemAudioCapture {
   private stream: MediaStream | null = null;
   private onTrackEndedCallback: (() => void) | null = null;
   private boundTrackEndedHandler: (() => void) | null = null;
+  private sampleRate: number;
+  private channels: number;
+
+  /**
+   * @param sampleRate AudioContext と一致させるサンプルレート。
+   *   不一致だとブラウザ内部のリサンプラーが介入し、Windows の CEF 環境で
+   *   音声がガビガビになる原因になる。
+   * @param channels 取得するチャンネル数（通常 2 = ステレオ）。
+   */
+  constructor(sampleRate: number, channels: number) {
+    this.sampleRate = sampleRate;
+    this.channels = channels;
+  }
 
   async start(): Promise<MediaStream> {
     // We only need audio, so try without video first to avoid
@@ -47,10 +60,16 @@ export class SystemAudioCapture {
     // Disable all audio processing upfront so the browser never applies
     // noise suppression / echo cancellation / auto gain to system audio.
     // applyConstraints() after the fact is unreliable in some environments.
+    // sampleRate と channelCount を明示的に指定し、AudioContext との
+    // サンプルレート不一致を防ぐ。Windows (CEF) ではシステムデバイスの
+    // native レートがそのまま使われることがあり、内部リサンプラーの不具合で
+    // 音声が歪む原因になる。
     const audioConstraints = {
       echoCancellation: false,
       noiseSuppression: false,
       autoGainControl: false,
+      sampleRate: this.sampleRate,
+      channelCount: this.channels,
     };
 
     try {

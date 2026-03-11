@@ -30,7 +30,7 @@ describe("SystemAudioCapture", () => {
   let capture: SystemAudioCapture;
 
   beforeEach(() => {
-    capture = new SystemAudioCapture();
+    capture = new SystemAudioCapture(48000, 2);
     vi.restoreAllMocks();
   });
 
@@ -182,7 +182,7 @@ describe("SystemAudioCapture", () => {
       mediaDevices: { getDisplayMedia },
     });
 
-    const capture = new SystemAudioCapture();
+    const capture = new SystemAudioCapture(48000, 2);
     const stream = await capture.start();
     expect(stream).toBe(mockStream);
     // Both calls should pass audio constraints (not just `true`)

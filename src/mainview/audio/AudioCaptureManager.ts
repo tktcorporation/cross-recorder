@@ -32,7 +32,8 @@ export class AudioCaptureManager {
   constructor(private rpcRequest: RpcRequest) {
     this.pipeline = new RecordingPipeline();
     this.micCapture = new MicrophoneCapture();
-    this.systemCapture = new SystemAudioCapture();
+    // systemCapture は start() 時に実際のサンプルレートで初期化する
+    this.systemCapture = new SystemAudioCapture(DEFAULT_SAMPLE_RATE, 2);
   }
 
   onTrackEnded(callback: (trackKind: TrackKind) => void): void {
@@ -61,6 +62,20 @@ export class AudioCaptureManager {
 
     await this.pipeline.initialize(DEFAULT_SAMPLE_RATE);
 
+    // AudioContext が要求通りのサンプルレートで動作しない場合がある
+    // （特に Windows の CEF 環境）。WAV ヘッダには実際のレートを使う。
+    const actualSampleRate = this.pipeline.getSampleRate();
+    if (actualSampleRate !== DEFAULT_SAMPLE_RATE) {
+      console.warn(
+        `[AudioCaptureManager] AudioContext のサンプルレートが要求値と異なります: ` +
+          `要求=${DEFAULT_SAMPLE_RATE}, 実際=${actualSampleRate}`,
+      );
+    }
+
+    // システムオーディオキャプチャを実際のサンプルレートで再作成し、
+    // getDisplayMedia の audio constraints と AudioContext のレートを一致させる
+    this.systemCapture = new SystemAudioCapture(actualSampleRate, 2);
+
     // Build tracks list
     const tracks: Array<{ trackKind: TrackKind; channels: number }> = [];
     if (config.micEnabled) {
@@ -72,7 +87,7 @@ export class AudioCaptureManager {
     this.activeTracks = tracks;
 
     const recordingConfig: RecordingConfig = {
-      sampleRate: DEFAULT_SAMPLE_RATE,
+      sampleRate: actualSampleRate,
       channels: 2,
       bitDepth: DEFAULT_BIT_DEPTH,
       micEnabled: config.micEnabled,

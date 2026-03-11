@@ -13,19 +13,16 @@ class PcmRecorderProcessor extends AudioWorkletProcessor {
 
   process(inputs) {
     const input = inputs[0];
-    if (!input || input.length === 0) {
-      return true;
-    }
+    // 入力が空でも無音フレームを書き込む。スキップすると WAV の総サンプル数が
+    // 実際の録音時間より短くなり、再生速度が速くなる原因になる。
+    // AudioWorklet の 1 render quantum は常に 128 フレーム。
+    const frameCount = (input && input[0]) ? input[0].length : 128;
+    const left = input?.[0];
+    const right = input?.[1];
 
-    const left = input[0];
-    if (!left) {
-      return true;
-    }
-
-    for (let i = 0; i < left.length; i++) {
-      this.buffers[0][this.writeIndex] = left[i];
+    for (let i = 0; i < frameCount; i++) {
+      this.buffers[0][this.writeIndex] = left ? left[i] : 0;
       if (this.channelCount === 2) {
-        const right = input[1];
         this.buffers[1][this.writeIndex] = right ? right[i] : 0;
       }
       this.writeIndex++;

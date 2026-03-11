@@ -1,5 +1,15 @@
 # cross-recorder
 
+## 0.9.2
+
+### Patch Changes
+
+- [#40](https://github.com/tktcorporation/cross-recorder/pull/40) [`640f824`](https://github.com/tktcorporation/cross-recorder/commit/640f824ade530d7f39266445320a6a064c923d23) Thanks [@tktcorporation](https://github.com/tktcorporation)! - Windows で録音中に音声がガビガビになり速度が速くなる問題を修正
+
+  - AudioWorklet が空入力を受け取った際に無音フレームを書き込むように変更。フレームスキップによる WAV ファイルの短縮（＝再生速度の加速）を防止
+  - getDisplayMedia の audio constraints に sampleRate / channelCount を明示的に指定し、システムデバイスの native レートとの不一致を防止
+  - WAV ヘッダのサンプルレートを AudioContext の実際のレートから取得するように変更（ハードコード 48000 Hz からの脱却）
+
 ## 0.9.1
 
 ### Patch Changes

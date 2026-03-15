@@ -63,7 +63,7 @@ export class AudioCaptureManager {
     await this.pipeline.initialize(DEFAULT_SAMPLE_RATE);
 
     // AudioContext が要求通りのサンプルレートで動作しない場合がある
-    // （特に Windows の CEF 環境）。WAV ヘッダには実際のレートを使う。
+    // （特に Windows の WebView2 環境）。WAV ヘッダには実際のレートを使う。
     const actualSampleRate = this.pipeline.getSampleRate();
     if (actualSampleRate !== DEFAULT_SAMPLE_RATE) {
       console.warn(

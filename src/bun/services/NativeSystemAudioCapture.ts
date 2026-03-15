@@ -1,8 +1,11 @@
 // src/bun/services/NativeSystemAudioCapture.ts
 //
-// Manages a native Swift subprocess that captures system audio via
-// ScreenCaptureKit on macOS. PCM data is read from stdout and written
-// to the WAV file through the provided callback.
+// Manages a native subprocess that captures system audio.
+// - macOS: Swift binary using ScreenCaptureKit
+// - Linux: Shell script using PipeWire (pw-cat) or PulseAudio (parec)
+//
+// PCM data is read from stdout and written to the WAV file through the
+// provided callback. Status/level/error messages arrive as JSON on stderr.
 
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -21,14 +24,19 @@ interface ActiveCapture {
 export class NativeSystemAudioCapture {
   private capture: ActiveCapture | null = null;
 
+  /**
+   * プラットフォームに応じたキャプチャバイナリ/スクリプトのパスを探す。
+   * macOS: コンパイル済み Swift バイナリ (capture-system-audio)
+   * Linux: シェルスクリプト (capture-system-audio.sh)
+   */
   private static findBinaryPath(): string | null {
+    const binaryName =
+      process.platform === "linux"
+        ? "capture-system-audio.sh"
+        : "capture-system-audio";
+
     // Development: project root / build / native
-    const devPath = path.join(
-      process.cwd(),
-      "build",
-      "native",
-      "capture-system-audio",
-    );
+    const devPath = path.join(process.cwd(), "build", "native", binaryName);
     if (fs.existsSync(devPath)) return devPath;
 
     // Production: relative to the bun entry (inside app bundle)
@@ -37,16 +45,22 @@ export class NativeSystemAudioCapture {
       "..",
       "..",
       "native",
-      "capture-system-audio",
+      binaryName,
     );
     if (fs.existsSync(prodPath)) return prodPath;
 
     return null;
   }
 
-  /** Whether native system audio capture is available on this platform. */
+  /**
+   * ネイティブシステム音声キャプチャがこのプラットフォームで利用可能か。
+   * macOS: ScreenCaptureKit バイナリの存在チェック
+   * Linux: PipeWire/PulseAudio スクリプトの存在チェック
+   */
   static isAvailable(): boolean {
-    return process.platform === "darwin" && NativeSystemAudioCapture.findBinaryPath() !== null;
+    const supported =
+      process.platform === "darwin" || process.platform === "linux";
+    return supported && NativeSystemAudioCapture.findBinaryPath() !== null;
   }
 
   /**

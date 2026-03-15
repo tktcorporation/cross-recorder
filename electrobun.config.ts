@@ -30,15 +30,8 @@ export default {
       "build/native": "native",
     },
     watchIgnore: ["dist/**"],
-    mac: {
-      bundleCEF: true,
-      defaultRenderer: "cef",
-    },
-    linux: {
-      bundleCEF: true,
-    },
-    win: {
-      bundleCEF: true,
-    },
+    // CEF を削除しシステム WebView を使用:
+    // macOS → WKWebView, Windows → WebView2, Linux → WebKitGTK
+    // システム音声キャプチャはネイティブ実装で対応（ブラウザ API 不要）
   },
 } satisfies ElectrobunConfigWithWatch;

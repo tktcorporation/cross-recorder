@@ -63,7 +63,7 @@ export class AudioCaptureManager {
     await this.pipeline.initialize(DEFAULT_SAMPLE_RATE);
 
     // AudioContext が要求通りのサンプルレートで動作しない場合がある
-    // （特に Windows の CEF 環境）。WAV ヘッダには実際のレートを使う。
+    // （特に Windows の WebView2 環境）。WAV ヘッダには実際のレートを使う。
     const actualSampleRate = this.pipeline.getSampleRate();
     if (actualSampleRate !== DEFAULT_SAMPLE_RATE) {
       console.warn(
@@ -96,14 +96,16 @@ export class AudioCaptureManager {
     };
     this.currentConfig = recordingConfig;
 
-    // Preflight check: verify ScreenCaptureKit permission before starting
+    // プリフライトチェック: ネイティブキャプチャの権限・環境を確認。
+    // エラーメッセージはバックエンドがプラットフォーム適切な hint を返す。
     if (this.usingNativeSystemAudio) {
       const permCheck =
         await this.rpcRequest.checkSystemAudioPermission({});
       if (!permCheck.ok) {
+        const reason = permCheck.reason ?? "Unknown reason";
+        const hint = permCheck.hint ? ` ${permCheck.hint}` : "";
         throw new Error(
-          `System audio capture permission denied: ${permCheck.reason ?? "Unknown reason"}. ` +
-            "Please grant Screen Recording permission in System Settings > Privacy & Security.",
+          `System audio capture permission denied: ${reason}.${hint}`,
         );
       }
     }
@@ -125,8 +127,8 @@ export class AudioCaptureManager {
       }
 
       // System audio: use getDisplayMedia only when NOT using native capture.
-      // On macOS, native capture via ScreenCaptureKit is handled by the Bun
-      // process — the frontend only needs to handle mic.
+      // macOS/Linux ではネイティブキャプチャを Bun プロセスが担当するため、
+      // フロントエンドはマイクのみ処理すればよい。
       if (config.systemAudioEnabled && !this.usingNativeSystemAudio) {
         this.systemCapture.onTrackEnded(() => {
           this.onTrackEndedCallback?.("system");

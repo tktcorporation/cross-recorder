@@ -23,6 +23,8 @@ export type CrossRecorderRPC = {
         response: {
           ok: boolean;
           reason?: string;
+          /** プラットフォーム固有の対処法ガイダンス（バックエンドが提供） */
+          hint?: string;
         };
       };
       startRecordingSession: {

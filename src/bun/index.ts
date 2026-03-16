@@ -37,7 +37,6 @@ new BrowserWindow({
     height: 700,
   },
   rpc,
-  renderer: "cef",
 });
 
 UpdateService.init((payload) => {

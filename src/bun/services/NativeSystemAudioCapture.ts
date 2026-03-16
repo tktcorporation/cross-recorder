@@ -1,8 +1,8 @@
 // src/bun/services/NativeSystemAudioCapture.ts
 //
 // Manages a native subprocess that captures system audio.
-// - macOS: Swift binary using ScreenCaptureKit
-// - Linux: Shell script using PipeWire (pw-cat) or PulseAudio (parec)
+// プラットフォーム固有の差異（バイナリ名、エラーメッセージ等）は
+// PlatformCaptureConfig に集約し、ビジネスロジックをプラットフォーム非依存に保つ。
 //
 // PCM data is read from stdout and written to the WAV file through the
 // provided callback. Status/level/error messages arrive as JSON on stderr.
@@ -14,6 +14,45 @@ type WriteChunkFn = (buffer: Buffer) => void;
 type LevelCallback = (level: number) => void;
 type ErrorCallback = (reason: string) => void;
 
+// ---------------------------------------------------------------------------
+// プラットフォーム定義
+// ---------------------------------------------------------------------------
+
+/**
+ * プラットフォーム固有のキャプチャ設定。
+ * 新しいプラットフォーム対応時はここに定義を追加するだけでよい。
+ */
+interface PlatformCaptureConfig {
+  /** build/native 配下のバイナリ/スクリプトのファイル名 */
+  binaryName: string;
+  /** checkPermission 失敗時にユーザーに表示するガイダンス */
+  permissionDeniedHint: string;
+}
+
+/**
+ * プラットフォームごとのキャプチャ設定マップ。
+ *
+ * macOS: ScreenCaptureKit (Swift コンパイル済みバイナリ)
+ * Linux: PipeWire/PulseAudio (シェルスクリプト)
+ *
+ * Windows は現在 WebView2 の getDisplayMedia で対応しており、
+ * ネイティブキャプチャは未実装。対応時はここに追加する。
+ */
+const PLATFORM_CONFIGS: Partial<Record<NodeJS.Platform, PlatformCaptureConfig>> = {
+  darwin: {
+    binaryName: "capture-system-audio",
+    permissionDeniedHint:
+      "システム設定 > プライバシーとセキュリティ > 画面収録 で権限を許可してください。",
+  },
+  linux: {
+    binaryName: "capture-system-audio.sh",
+    permissionDeniedHint:
+      "PipeWire (pw-cat) または PulseAudio (parec) がインストールされ、動作していることを確認してください。",
+  },
+};
+
+// ---------------------------------------------------------------------------
+
 interface ActiveCapture {
   process: ReturnType<typeof Bun.spawn>;
   sessionId: string;
@@ -24,19 +63,21 @@ interface ActiveCapture {
 export class NativeSystemAudioCapture {
   private capture: ActiveCapture | null = null;
 
+  /** 現在のプラットフォームに対応する設定を返す。未対応なら null。 */
+  private static getPlatformConfig(): PlatformCaptureConfig | null {
+    return PLATFORM_CONFIGS[process.platform] ?? null;
+  }
+
   /**
-   * プラットフォームに応じたキャプチャバイナリ/スクリプトのパスを探す。
-   * macOS: コンパイル済み Swift バイナリ (capture-system-audio)
-   * Linux: シェルスクリプト (capture-system-audio.sh)
+   * キャプチャバイナリ/スクリプトのパスを探す。
+   * 開発時は build/native、本番時はアプリバンドル内の native ディレクトリを探索する。
    */
   private static findBinaryPath(): string | null {
-    const binaryName =
-      process.platform === "linux"
-        ? "capture-system-audio.sh"
-        : "capture-system-audio";
+    const config = NativeSystemAudioCapture.getPlatformConfig();
+    if (!config) return null;
 
     // Development: project root / build / native
-    const devPath = path.join(process.cwd(), "build", "native", binaryName);
+    const devPath = path.join(process.cwd(), "build", "native", config.binaryName);
     if (fs.existsSync(devPath)) return devPath;
 
     // Production: relative to the bun entry (inside app bundle)
@@ -45,34 +86,30 @@ export class NativeSystemAudioCapture {
       "..",
       "..",
       "native",
-      binaryName,
+      config.binaryName,
     );
     if (fs.existsSync(prodPath)) return prodPath;
 
     return null;
   }
 
-  /**
-   * ネイティブシステム音声キャプチャがこのプラットフォームで利用可能か。
-   * macOS: ScreenCaptureKit バイナリの存在チェック
-   * Linux: PipeWire/PulseAudio スクリプトの存在チェック
-   */
+  /** ネイティブシステム音声キャプチャがこのプラットフォームで利用可能か。 */
   static isAvailable(): boolean {
-    const supported =
-      process.platform === "darwin" || process.platform === "linux";
-    return supported && NativeSystemAudioCapture.findBinaryPath() !== null;
+    return NativeSystemAudioCapture.findBinaryPath() !== null;
   }
 
   /**
-   * Run a preflight check to verify ScreenCaptureKit access and permissions.
-   * Returns { ok: true } or { ok: false, reason: string }.
+   * プリフライトチェック: キャプチャバイナリの起動可否と権限を確認する。
+   * 失敗時の reason にはプラットフォーム適切なガイダンスが含まれる。
    */
   static async checkPermission(): Promise<{
     ok: boolean;
     reason?: string;
+    hint?: string;
   }> {
+    const config = NativeSystemAudioCapture.getPlatformConfig();
     const binaryPath = NativeSystemAudioCapture.findBinaryPath();
-    if (!binaryPath) {
+    if (!binaryPath || !config) {
       return { ok: false, reason: "Native capture binary not found" };
     }
 
@@ -104,7 +141,11 @@ export class NativeSystemAudioCapture {
         const msg = JSON.parse(line) as Record<string, unknown>;
         if (msg.check === "ok") return { ok: true };
         if (msg.check === "error") {
-          return { ok: false, reason: String(msg.reason ?? "Unknown error") };
+          return {
+            ok: false,
+            reason: String(msg.reason ?? "Unknown error"),
+            hint: config.permissionDeniedHint,
+          };
         }
       } catch {
         /* skip non-JSON */
@@ -114,6 +155,7 @@ export class NativeSystemAudioCapture {
     return {
       ok: false,
       reason: `Preflight check failed (exit code: ${proc.exitCode})`,
+      hint: config.permissionDeniedHint,
     };
   }
 
@@ -178,11 +220,12 @@ export class NativeSystemAudioCapture {
       );
     }
 
-    // Start background readers for ongoing stderr (levels) and stdout (PCM data)
+    // Start background readers for ongoing stderr (errors) and stdout (PCM data + level)
     this.readStderrLoop(stderrReader, decoder, stderrBuffer);
     this.readStdoutLoop(
       (proc.stdout as ReadableStream<Uint8Array>).getReader(),
       writeChunk,
+      sampleRate,
     );
   }
 
@@ -265,6 +308,11 @@ export class NativeSystemAudioCapture {
     return Promise.race([read(), timeout]);
   }
 
+  /**
+   * stderr からの JSON メッセージを処理する（エラー通知のみ）。
+   * レベル報告は readStdoutLoop で PCM データから直接計算するため、
+   * ネイティブバイナリ/スクリプト側での level 実装は不要。
+   */
   private readStderrLoop(
     reader: ReadableStreamDefaultReader<Uint8Array>,
     decoder: TextDecoder,
@@ -288,14 +336,11 @@ export class NativeSystemAudioCapture {
             if (!line) continue;
             try {
               const msg = JSON.parse(line) as Record<string, unknown>;
-              if (typeof msg.level === "number") {
-                this.capture?.onLevel?.(msg.level as number);
-              }
               if (typeof msg.error === "string") {
                 this.capture?.onError?.(msg.error as string);
               }
             } catch {
-              /* skip */
+              /* skip non-JSON lines */
             }
           }
         }
@@ -305,17 +350,51 @@ export class NativeSystemAudioCapture {
     })();
   }
 
+  /**
+   * stdout から PCM Int16LE データを読み、writeChunk に渡す。
+   * 同時に RMS レベルを計算し、~100ms ごとに onLevel コールバックに報告する。
+   *
+   * レベル計算をここで行うことで、ネイティブバイナリ/スクリプト側は
+   * 「PCM を stdout に出す」だけに専念でき、プラットフォーム間で一貫した
+   * レベル報告が得られる。
+   */
   private readStdoutLoop(
     reader: ReadableStreamDefaultReader<Uint8Array>,
     writeChunk: WriteChunkFn,
+    sampleRate: number,
   ): void {
+    // ~100ms ごとにレベルを報告するためのサンプル数閾値
+    // (サンプルレート / 10) で約100msぶんのサンプル
+    const levelReportInterval = Math.floor(sampleRate / 10);
+    let squareSum = 0;
+    let sampleCount = 0;
+
     void (async () => {
       try {
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
           if (!this.capture) break;
+
           writeChunk(Buffer.from(value));
+
+          // PCM Int16LE のサンプルから RMS レベルを計算
+          const view = new DataView(value.buffer, value.byteOffset, value.byteLength);
+          const numSamples = Math.floor(value.byteLength / 2);
+          for (let i = 0; i < numSamples; i++) {
+            const sample = view.getInt16(i * 2, true) / 32768;
+            squareSum += sample * sample;
+            sampleCount++;
+          }
+
+          if (sampleCount >= levelReportInterval) {
+            const rms = Math.sqrt(squareSum / sampleCount);
+            // rms * 2 で見やすい範囲にスケール（macOS Swift 実装と同じ）
+            const level = Math.min(1, rms * 2);
+            this.capture?.onLevel?.(level);
+            squareSum = 0;
+            sampleCount = 0;
+          }
         }
       } catch {
         /* stream closed */

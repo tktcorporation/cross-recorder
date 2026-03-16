@@ -19,7 +19,7 @@ export class SystemAudioCapture {
   async start(): Promise<MediaStream> {
     // We only need audio, so try without video first to avoid
     // "NotReadableError: Could not start video source" errors.
-    // Fall back to video: true for environments (e.g. CEF) that require it.
+    // Fall back to video: true for WebView environments that require it.
     this.stream = await this.acquireDisplayMedia();
 
     // Disable video tracks — we only need audio, but stopping them

@@ -39,7 +39,7 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
           FileService.startSession(params.sessionId, params.config, params.tracks),
         );
 
-        // Start native system audio capture on macOS when requested
+        // ネイティブシステム音声キャプチャを開始（macOS/Linux で利用可能）
         if (params.nativeSystemAudio) {
           try {
             await nativeCapture.start(

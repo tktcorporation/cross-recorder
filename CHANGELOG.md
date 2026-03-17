@@ -1,5 +1,28 @@
 # cross-recorder
 
+## 0.10.0
+
+### Minor Changes
+
+- [#42](https://github.com/tktcorporation/cross-recorder/pull/42) [`66c08b3`](https://github.com/tktcorporation/cross-recorder/commit/66c08b3d440e49766874934b07028e9f05940bbb) Thanks [@tktcorporation](https://github.com/tktcorporation)! - CEF バンドルを削除しシステム WebView に移行。ダウンロードサイズを ~100MB 削減。
+
+  - 全プラットフォームで bundleCEF: true を削除し、システム WebView を使用
+    - macOS: WKWebView (WebKit)
+    - Windows: WebView2 (Chromium ベース、OS 管理)
+    - Linux: WebKitGTK
+  - Linux 用ネイティブシステム音声キャプチャを追加 (PipeWire / PulseAudio)
+  - NativeSystemAudioCapture にプラットフォーム定義を導入し、プラットフォーム固有の設定を集約
+  - RMS レベル計算を TypeScript 側に統一（全プラットフォーム共通）
+  - エラーメッセージのプラットフォーム適合をバックエンドに移動
+
+### Patch Changes
+
+- [#40](https://github.com/tktcorporation/cross-recorder/pull/40) [`640f824`](https://github.com/tktcorporation/cross-recorder/commit/640f824ade530d7f39266445320a6a064c923d23) Thanks [@tktcorporation](https://github.com/tktcorporation)! - Windows で録音中に音声がガビガビになり速度が速くなる問題を修正
+
+  - AudioWorklet が空入力を受け取った際に無音フレームを書き込むように変更。フレームスキップによる WAV ファイルの短縮（＝再生速度の加速）を防止
+  - getDisplayMedia の audio constraints に sampleRate / channelCount を明示的に指定し、システムデバイスの native レートとの不一致を防止
+  - WAV ヘッダのサンプルレートを AudioContext の実際のレートから取得するように変更（ハードコード 48000 Hz からの脱却）
+
 ## 0.9.1
 
 ### Patch Changes

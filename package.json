@@ -28,7 +28,7 @@
     "@radix-ui/react-switch": "^1.2.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "effect": "^3.12.0",
+    "effect": "^3.20.0",
     "electrobun": "^1.14.4",
     "framer-motion": "^12.35.1",
     "nanoid": "^5.1.2",

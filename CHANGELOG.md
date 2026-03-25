@@ -1,5 +1,11 @@
 # cross-recorder
 
+## 0.11.0
+
+### Minor Changes
+
+- [#44](https://github.com/tktcorporation/cross-recorder/pull/44) [`e25b5f5`](https://github.com/tktcorporation/cross-recorder/commit/e25b5f5e57bf7dfaedf22b1edead51346a642488) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 録音の文字起こし機能を追加。OpenAI Whisper API（互換サービス対応）を使用して録音をテキストに変換できる。API 設定画面、文字起こしボタン、結果表示を ExpandedPlayer に統合。
+
 ## 0.10.0
 
 ### Minor Changes

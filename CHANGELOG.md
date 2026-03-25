@@ -1,5 +1,11 @@
 # cross-recorder
 
+## 0.11.2
+
+### Patch Changes
+
+- [#48](https://github.com/tktcorporation/cross-recorder/pull/48) [`c2f6a52`](https://github.com/tktcorporation/cross-recorder/commit/c2f6a52a77a6eb517805fa05875a4f918cdd3b8d) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 文字起こしエラー時に具体的な原因が表示されるよう修正。TranscriptionError の reason が FiberFailure でラップされても失われないようにした。
+
 ## 0.11.1
 
 ### Patch Changes

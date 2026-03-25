@@ -60,12 +60,21 @@ export function init(send: SendUpdateStatus) {
   });
 
   // Auto-check for updates 5 seconds after startup
-  setTimeout(async () => {
-    try {
-      await Updater.checkForUpdate();
-    } catch (e) {
-      console.error("[UpdateService] auto-check failed:", e);
-    }
+  // fire-and-forget: エラーはログに記録して握り潰す
+  setTimeout(() => {
+    Effect.runPromise(
+      Effect.tryPromise({
+        try: () => Updater.checkForUpdate(),
+        catch: (e) => e,
+      }).pipe(
+        Effect.tapError((e) =>
+          Effect.sync(() =>
+            console.error("[UpdateService] auto-check failed:", e),
+          ),
+        ),
+        Effect.catchAll(() => Effect.void),
+      ),
+    );
   }, 5000);
 }
 

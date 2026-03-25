@@ -46,27 +46,32 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
         );
 
         // ネイティブシステム音声キャプチャを開始（macOS/Linux で利用可能）
+        // 失敗時はファイルセッションをクリーンアップしてからエラーを伝播する
         if (params.nativeSystemAudio) {
-          try {
-            await nativeCapture.start(
-              params.sessionId,
-              params.config.sampleRate,
-              (buffer) =>
-                FileService.writeChunkSync(
+          await Effect.runPromise(
+            Effect.tryPromise({
+              try: () =>
+                nativeCapture.start(
                   params.sessionId,
-                  "system",
-                  buffer,
+                  params.config.sampleRate,
+                  (buffer) =>
+                    FileService.writeChunkSync(
+                      params.sessionId,
+                      "system",
+                      buffer,
+                    ),
+                  (level) => rpc.send.nativeSystemAudioLevel({ level }),
+                  (reason) => rpc.send.nativeSystemAudioError({ reason }),
                 ),
-              (level) => rpc.send.nativeSystemAudioLevel({ level }),
-              (reason) => rpc.send.nativeSystemAudioError({ reason }),
-            );
-          } catch (err) {
-            // Clean up the file session on native capture failure
-            await Effect.runPromise(
-              FileService.cancelSession(params.sessionId),
-            );
-            throw err;
-          }
+              catch: (err) => err as Error,
+            }).pipe(
+              Effect.tapError(() =>
+                FileService.cancelSession(params.sessionId).pipe(
+                  Effect.catchAll(() => Effect.void),
+                ),
+              ),
+            ),
+          );
         }
 
         return result;

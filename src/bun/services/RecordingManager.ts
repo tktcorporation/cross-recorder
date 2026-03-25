@@ -61,67 +61,67 @@ export function updateRecording(
   recordingId: string,
   update: Partial<RecordingMetadata>,
 ) {
-  return Effect.tryPromise({
-    try: async () => {
-      const recordings = readMetadataFile();
-      const index = recordings.findIndex((r) => r.id === recordingId);
-      if (index === -1) {
-        throw new RecordingNotFoundError({ recordingId });
-      }
-      recordings[index] = { ...recordings[index]!, ...update };
-      writeMetadataFile(recordings);
-      return recordings[index]!;
-    },
-    catch: (error) => {
-      if (error instanceof RecordingNotFoundError) {
-        return error;
-      }
-      return new FileWriteError({
-        path: metadataPath,
-        reason: String(error),
-      });
-    },
+  return Effect.gen(function* () {
+    const recordings = yield* Effect.try({
+      try: () => readMetadataFile(),
+      catch: (error) =>
+        new FileReadError({ path: metadataPath, reason: String(error) }),
+    });
+    const index = recordings.findIndex((r) => r.id === recordingId);
+    if (index === -1) {
+      return yield* Effect.fail(
+        new RecordingNotFoundError({ recordingId }),
+      );
+    }
+    recordings[index] = { ...recordings[index]!, ...update };
+    yield* Effect.try({
+      try: () => writeMetadataFile(recordings),
+      catch: (error) =>
+        new FileWriteError({ path: metadataPath, reason: String(error) }),
+    });
+    return recordings[index]!;
   });
 }
 
 export function deleteRecording(recordingId: string) {
-  return Effect.tryPromise({
-    try: async () => {
-      const recordings = readMetadataFile();
-      const index = recordings.findIndex((r) => r.id === recordingId);
-      if (index === -1) {
-        throw new RecordingNotFoundError({ recordingId });
-      }
+  return Effect.gen(function* () {
+    const recordings = yield* Effect.try({
+      try: () => readMetadataFile(),
+      catch: (error) =>
+        new FileReadError({ path: metadataPath, reason: String(error) }),
+    });
+    const index = recordings.findIndex((r) => r.id === recordingId);
+    if (index === -1) {
+      return yield* Effect.fail(
+        new RecordingNotFoundError({ recordingId }),
+      );
+    }
 
-      const recording = recordings[index]!;
+    const recording = recordings[index]!;
 
-      if (recording.tracks && recording.tracks.length > 0) {
-        // New multi-track format: delete directory recursively
-        const dirPath = recording.filePath;
-        if (fs.existsSync(dirPath)) {
-          fs.rmSync(dirPath, { recursive: true });
+    yield* Effect.try({
+      try: () => {
+        if (recording.tracks && recording.tracks.length > 0) {
+          // New multi-track format: delete directory recursively
+          const dirPath = recording.filePath;
+          if (fs.existsSync(dirPath)) {
+            fs.rmSync(dirPath, { recursive: true });
+          }
+        } else {
+          // Old single-file format
+          if (fs.existsSync(recording.filePath)) {
+            fs.unlinkSync(recording.filePath);
+          }
         }
-      } else {
-        // Old single-file format
-        if (fs.existsSync(recording.filePath)) {
-          fs.unlinkSync(recording.filePath);
-        }
-      }
 
-      // Remove from metadata
-      recordings.splice(index, 1);
-      writeMetadataFile(recordings);
+        // Remove from metadata
+        recordings.splice(index, 1);
+        writeMetadataFile(recordings);
+      },
+      catch: (error) =>
+        new FileWriteError({ path: metadataPath, reason: String(error) }),
+    });
 
-      return { success: true as const };
-    },
-    catch: (error) => {
-      if (error instanceof RecordingNotFoundError) {
-        return error;
-      }
-      return new FileWriteError({
-        path: metadataPath,
-        reason: String(error),
-      });
-    },
+    return { success: true as const };
   });
 }

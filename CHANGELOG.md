@@ -1,5 +1,11 @@
 # cross-recorder
 
+## 0.11.1
+
+### Patch Changes
+
+- [#46](https://github.com/tktcorporation/cross-recorder/pull/46) [`832aace`](https://github.com/tktcorporation/cross-recorder/commit/832aaced0b8779dd97554f18550eae1fcc6c8069) Thanks [@tktcorporation](https://github.com/tktcorporation)! - サイドバーのレイアウト修正、設定画面の追加、macOS ネイティブ文字起こしの API キー不要化
+
 ## 0.11.0
 
 ### Minor Changes

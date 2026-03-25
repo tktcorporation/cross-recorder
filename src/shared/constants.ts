@@ -19,3 +19,13 @@ export const CONFIG_FILE = "config.json";
 
 /** アプリデータディレクトリ名 */
 export const APP_DATA_DIR = "cross-recorder";
+
+/** 文字起こし設定ファイル名 */
+export const TRANSCRIPTION_CONFIG_FILE = "transcription-config.json";
+
+/** OpenAI Whisper API のデフォルトエンドポイント */
+export const DEFAULT_WHISPER_API_BASE_URL =
+  "https://api.openai.com/v1";
+
+/** デフォルトの Whisper モデル */
+export const DEFAULT_WHISPER_MODEL = "whisper-1";

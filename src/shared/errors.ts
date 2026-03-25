@@ -47,3 +47,7 @@ export class ShellCommandError extends Data.TaggedError("ShellCommandError")<{
   readonly command: string;
   readonly reason: string;
 }> {}
+
+export class TranscriptionError extends Data.TaggedError("TranscriptionError")<{
+  readonly reason: string;
+}> {}

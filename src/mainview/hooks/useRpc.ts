@@ -24,6 +24,12 @@ export function useRpc() {
         rpc.request.openFileLocation(params),
       getPlaybackData: (params: Parameters<typeof rpc.request.getPlaybackData>[0]) =>
         rpc.request.getPlaybackData(params),
+      transcribeRecording: (params: Parameters<typeof rpc.request.transcribeRecording>[0]) =>
+        rpc.request.transcribeRecording(params),
+      getTranscriptionConfig: (params: Parameters<typeof rpc.request.getTranscriptionConfig>[0]) =>
+        rpc.request.getTranscriptionConfig(params),
+      setTranscriptionConfig: (params: Parameters<typeof rpc.request.setTranscriptionConfig>[0]) =>
+        rpc.request.setTranscriptionConfig(params),
     }),
     [],
   );

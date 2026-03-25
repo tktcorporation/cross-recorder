@@ -14,7 +14,8 @@ export default {
   },
   create(context) {
     const filename = context.filename ?? context.getFilename();
-    if (!filename.includes("/services/")) {
+    // src/bun/ 配下の全ファイルに適用（Effect を使うバックエンド層）
+    if (!filename.includes("/src/bun/")) {
       return {};
     }
 

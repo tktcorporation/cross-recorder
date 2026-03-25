@@ -14,7 +14,7 @@
     "build": "bash scripts/ci-free-disk.sh && bash scripts/build-native.sh && vite build && electrobun build --env=stable",
     "build:vite": "vite build",
     "typecheck": "bash -c 'tsc --noEmit --skipLibCheck 2>&1 | grep -v node_modules | grep error && exit 1 || exit 0'",
-    "lint": "oxlint",
+    "lint": "oxlint -c oxlint.config.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "oxlint --fix",

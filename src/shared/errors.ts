@@ -50,4 +50,12 @@ export class ShellCommandError extends Data.TaggedError("ShellCommandError")<{
 
 export class TranscriptionError extends Data.TaggedError("TranscriptionError")<{
   readonly reason: string;
-}> {}
+}> {
+  /**
+   * FiberFailure でラップされても reason が表示されるよう、
+   * Error.message を reason で上書きする。
+   */
+  override get message(): string {
+    return this.reason;
+  }
+}

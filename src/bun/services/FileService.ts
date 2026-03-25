@@ -154,85 +154,92 @@ export function finalizeRecording(
   config: RecordingConfig,
   _totalChunks: Record<TrackKind, number>,
 ) {
-  return Effect.tryPromise({
-    try: async () => {
-      const session = sessions.get(sessionId);
-      if (!session) {
-        throw new Error(`Session not found: ${sessionId}`);
-      }
-
-      // Rewrite WAV headers and close FDs for each track
-      for (const track of session.tracks.values()) {
-        writeWavHeader(
-          track.fd,
-          track.channels,
-          config.sampleRate,
-          config.bitDepth,
-          track.bytesWritten,
-        );
-        fs.closeSync(track.fd);
-      }
-
-      // Rename session directory to timestamp-based name
-      const now = new Date();
-      const timestamp = now
-        .toISOString()
-        .replace(/T/, "_")
-        .replace(/:/g, "-")
-        .replace(/\.\d{3}Z$/, "");
-      const newDirPath = path.join(recordingsDir, timestamp);
-      fs.renameSync(session.sessionDir, newDirPath);
-
-      // Compute duration from the longest track
-      let maxBytes = 0;
-      let maxChannels = config.channels;
-      let totalSizeBytes = 0;
-
-      const tracksInfo: TrackInfo[] = [];
-      for (const [trackKind, track] of session.tracks.entries()) {
-        const newTrackPath = path.join(newDirPath, `${trackKind}.wav`);
-        const stat = fs.statSync(newTrackPath);
-        totalSizeBytes += stat.size;
-
-        tracksInfo.push({
-          trackKind,
-          fileName: `${trackKind}.wav`,
-          filePath: newTrackPath,
-          channels: track.channels,
-          fileSizeBytes: stat.size,
-        });
-
-        if (track.bytesWritten > maxBytes) {
-          maxBytes = track.bytesWritten;
-          maxChannels = track.channels;
-        }
-      }
-
-      const durationMs = Math.round(
-        (maxBytes /
-          (config.sampleRate * maxChannels * (config.bitDepth / 8))) *
-          1000,
+  return Effect.gen(function* () {
+    const session = sessions.get(sessionId);
+    if (!session) {
+      return yield* Effect.fail(
+        new FileWriteError({
+          path: sessionId,
+          reason: `Session not found: ${sessionId}`,
+        }),
       );
+    }
 
-      const metadata: RecordingMetadata = {
-        id: sessionId,
-        fileName: timestamp,
-        filePath: newDirPath,
-        tracks: tracksInfo,
-        createdAt: now.toISOString(),
-        durationMs,
-        fileSizeBytes: totalSizeBytes,
-        config,
-      };
+    return yield* Effect.try({
+      try: () => {
+        // Rewrite WAV headers and close FDs for each track
+        for (const track of session.tracks.values()) {
+          writeWavHeader(
+            track.fd,
+            track.channels,
+            config.sampleRate,
+            config.bitDepth,
+            track.bytesWritten,
+          );
+          fs.closeSync(track.fd);
+        }
 
-      sessions.delete(sessionId);
-      return metadata;
-    },
-    catch: (error) =>
-      new FileWriteError({
-        path: sessions.get(sessionId)?.sessionDir ?? sessionId,
-        reason: String(error),
-      }),
+        // Rename session directory to timestamp-based name
+        const now = new Date();
+        const timestamp = now
+          .toISOString()
+          .replace(/T/, "_")
+          .replace(/:/g, "-")
+          .replace(/\.\d{3}Z$/, "");
+        const newDirPath = path.join(recordingsDir, timestamp);
+        fs.renameSync(session.sessionDir, newDirPath);
+
+        // Compute duration from the longest track
+        let maxBytes = 0;
+        let maxChannels = config.channels;
+        let totalSizeBytes = 0;
+
+        const tracksInfo: TrackInfo[] = [];
+        for (const [trackKind, track] of session.tracks.entries()) {
+          const newTrackPath = path.join(newDirPath, `${trackKind}.wav`);
+          const stat = fs.statSync(newTrackPath);
+          totalSizeBytes += stat.size;
+
+          tracksInfo.push({
+            trackKind,
+            fileName: `${trackKind}.wav`,
+            filePath: newTrackPath,
+            channels: track.channels,
+            fileSizeBytes: stat.size,
+          });
+
+          if (track.bytesWritten > maxBytes) {
+            maxBytes = track.bytesWritten;
+            maxChannels = track.channels;
+          }
+        }
+
+        const durationMs = Math.round(
+          (maxBytes /
+            (config.sampleRate * maxChannels * (config.bitDepth / 8))) *
+            1000,
+        );
+
+        const metadata: RecordingMetadata = {
+          id: sessionId,
+          fileName: timestamp,
+          filePath: newDirPath,
+          tracks: tracksInfo,
+          createdAt: now.toISOString(),
+          durationMs,
+          fileSizeBytes: totalSizeBytes,
+          config,
+        };
+
+        sessions.delete(sessionId);
+        return metadata;
+      },
+      catch: (error) =>
+        new FileWriteError({
+          path: session.sessionDir,
+          reason: String(error),
+        }),
+    });
   });
 }
 

@@ -105,7 +105,10 @@ export type CrossRecorderRPC = {
       };
       getTranscriptionConfig: {
         params: Record<string, never>;
-        response: TranscriptionConfig;
+        response: TranscriptionConfig & {
+          /** macOS ネイティブ文字起こしがこのプラットフォームで利用可能か */
+          nativeAvailable: boolean;
+        };
       };
       setTranscriptionConfig: {
         params: TranscriptionConfig;

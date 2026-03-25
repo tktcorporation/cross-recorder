@@ -76,6 +76,12 @@ export type TranscriptionConfig = {
   model: string;
   /** 文字起こしの言語（ISO 639-1 コード、空文字で自動検出） */
   language: string;
+  /**
+   * macOS のネイティブ音声認識を使用するか。
+   * true の場合、macOS で Speech.framework が利用可能ならネイティブを優先する。
+   * ネイティブが使えない場合（非 macOS、権限なし等）は API にフォールバック。
+   */
+  useNative: boolean;
 };
 
 export type UpdateStatus =

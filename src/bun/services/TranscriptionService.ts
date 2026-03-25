@@ -19,6 +19,7 @@ import type {
   TranscriptionConfig,
   TranscriptionResult,
 } from "../../shared/types.js";
+import * as NativeTranscription from "./NativeTranscription.js";
 import * as RecordingManager from "./RecordingManager.js";
 
 const configPath = path.join(
@@ -32,11 +33,12 @@ const defaultConfig: TranscriptionConfig = {
   apiBaseUrl: DEFAULT_WHISPER_API_BASE_URL,
   model: DEFAULT_WHISPER_MODEL,
   language: "ja",
+  useNative: true,
 };
 
 /**
  * 文字起こし設定を読み込む。
- * 未設定の場合はデフォルト値（API キー空）を返す。
+ * 未設定の場合はデフォルト値（ネイティブ優先、API キー空）を返す。
  */
 export function loadConfig() {
   return Effect.tryPromise({
@@ -69,11 +71,12 @@ export function saveConfig(config: TranscriptionConfig) {
 }
 
 /**
- * 指定した録音の指定トラックを OpenAI Whisper API で文字起こしする。
+ * 指定した録音の指定トラックを文字起こしする。
  *
- * 背景: 録音完了後にユーザーが手動で実行する。WAV ファイルを multipart/form-data で
- * Whisper API に送信し、返却されたテキストを録音ディレクトリ内の .txt ファイルに保存する。
- * メタデータ (recordings.json) にも結果を記録する。
+ * 背景: 録音完了後にユーザーが手動で実行する。
+ * macOS でネイティブが利用可能かつ useNative=true の場合は Speech.framework を使用し、
+ * それ以外の場合は OpenAI Whisper API にフォールバックする。
+ * 結果は録音ディレクトリ内の .txt ファイルに保存し、メタデータにも記録する。
  *
  * @param recording - 対象の録音メタデータ
  * @param trackKind - 文字起こし対象のトラック（"mic" or "system"）
@@ -81,15 +84,6 @@ export function saveConfig(config: TranscriptionConfig) {
 export function transcribe(recording: RecordingMetadata, trackKind: TrackKind) {
   return Effect.gen(function* () {
     const config = yield* loadConfig();
-
-    if (!config.apiKey) {
-      return yield* Effect.fail(
-        new TranscriptionError({
-          reason:
-            "API key is not configured. Please set your OpenAI API key in transcription settings.",
-        }),
-      );
-    }
 
     const track = recording.tracks.find((t) => t.trackKind === trackKind);
     if (!track) {
@@ -108,12 +102,37 @@ export function transcribe(recording: RecordingMetadata, trackKind: TrackKind) {
       );
     }
 
-    // Whisper API に WAV ファイルを送信
-    const text = yield* Effect.tryPromise({
-      try: () => callWhisperApi(config, track.filePath),
-      catch: (error) =>
-        new TranscriptionError({ reason: String(error) }),
-    });
+    // ネイティブ文字起こしを試みるか判定
+    const shouldUseNative =
+      config.useNative && NativeTranscription.isAvailable();
+
+    let text: string;
+
+    if (shouldUseNative) {
+      // macOS ネイティブ (Speech.framework) で文字起こし
+      text = yield* Effect.tryPromise({
+        try: () =>
+          NativeTranscription.transcribe(track.filePath, config.language),
+        catch: (error) =>
+          new TranscriptionError({ reason: String(error) }),
+      });
+    } else {
+      // OpenAI Whisper API で文字起こし
+      if (!config.apiKey) {
+        return yield* Effect.fail(
+          new TranscriptionError({
+            reason:
+              "API key is not configured. Please set your OpenAI API key in transcription settings, or enable native transcription on macOS.",
+          }),
+        );
+      }
+
+      text = yield* Effect.tryPromise({
+        try: () => callWhisperApi(config, track.filePath),
+        catch: (error) =>
+          new TranscriptionError({ reason: String(error) }),
+      });
+    }
 
     // 結果を .txt ファイルに保存
     const txtFileName = `${trackKind}-transcription.txt`;

@@ -9,6 +9,7 @@ import type {
 } from "../shared/types.js";
 import * as FileService from "./services/FileService.js";
 import * as RecordingManager from "./services/RecordingManager.js";
+import * as NativeTranscription from "./services/NativeTranscription.js";
 import * as TranscriptionService from "./services/TranscriptionService.js";
 import * as UpdateService from "./services/UpdateService.js";
 import { NativeSystemAudioCapture } from "./services/NativeSystemAudioCapture.js";
@@ -185,7 +186,13 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
       },
 
       getTranscriptionConfig: async () => {
-        return Effect.runPromise(TranscriptionService.loadConfig());
+        const config = await Effect.runPromise(
+          TranscriptionService.loadConfig(),
+        );
+        return {
+          ...config,
+          nativeAvailable: NativeTranscription.isAvailable(),
+        };
       },
 
       setTranscriptionConfig: async (params: TranscriptionConfig) => {

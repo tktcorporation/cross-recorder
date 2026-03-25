@@ -28,6 +28,21 @@ case "$(uname -s)" in
 
     chmod +x "$OUTPUT"
     echo "Built: $OUTPUT"
+
+    echo "Building macOS native speech transcription..."
+
+    SWIFT_SRC="$PROJECT_ROOT/src/native/macos/transcribe-audio.swift"
+    OUTPUT="$OUTPUT_DIR/transcribe-audio"
+
+    swiftc \
+      -O \
+      -o "$OUTPUT" \
+      -framework Speech \
+      -framework Foundation \
+      "$SWIFT_SRC"
+
+    chmod +x "$OUTPUT"
+    echo "Built: $OUTPUT"
     ;;
 
   Linux)

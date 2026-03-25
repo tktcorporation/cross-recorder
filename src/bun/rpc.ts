@@ -161,27 +161,35 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
           result: { status: "transcribing", trackKind: params.trackKind },
         });
 
-        try {
-          const result = await Effect.runPromise(
-            TranscriptionService.transcribe(recording, params.trackKind),
-          );
-          rpc.send.transcriptionStatus({
-            recordingId: params.recordingId,
-            result,
-          });
-          return result;
-        } catch (err) {
-          const errorResult: TranscriptionResult = {
-            status: "error",
-            error: String(err),
-            trackKind: params.trackKind,
-          };
-          rpc.send.transcriptionStatus({
-            recordingId: params.recordingId,
-            result: errorResult,
-          });
-          return errorResult;
-        }
+        // Effect パイプライン内でエラーを処理する。
+        // Effect.runPromise の FiberFailure ラップで reason が失われるのを防ぐ。
+        const result = await Effect.runPromise(
+          TranscriptionService.transcribe(recording, params.trackKind).pipe(
+            Effect.tap((r) =>
+              Effect.sync(() =>
+                rpc.send.transcriptionStatus({
+                  recordingId: params.recordingId,
+                  result: r,
+                }),
+              ),
+            ),
+            Effect.catchAll((err) => {
+              const reason =
+                "reason" in err ? String(err.reason) : String(err);
+              const errorResult: TranscriptionResult = {
+                status: "error",
+                error: reason,
+                trackKind: params.trackKind,
+              };
+              rpc.send.transcriptionStatus({
+                recordingId: params.recordingId,
+                result: errorResult,
+              });
+              return Effect.succeed(errorResult);
+            }),
+          ),
+        );
+        return result;
       },
 
       getTranscriptionConfig: async () => {

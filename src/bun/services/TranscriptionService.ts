@@ -103,12 +103,22 @@ export function transcribe(recording: RecordingMetadata, trackKind: TrackKind) {
     }
 
     // ネイティブ文字起こしを試みるか判定
-    const shouldUseNative =
-      config.useNative && NativeTranscription.isAvailable();
+    // macOS でユーザーがネイティブを希望している場合はネイティブを優先する。
+    // バイナリが見つからない場合は API にフォールバックせず明確なエラーを出す。
+    const wantsNative =
+      config.useNative && process.platform === "darwin";
 
     let text: string;
 
-    if (shouldUseNative) {
+    if (wantsNative) {
+      if (!NativeTranscription.isAvailable()) {
+        return yield* Effect.fail(
+          new TranscriptionError({
+            reason:
+              "Native transcription binary not found. Run `pnpm build:native` to build it, or disable native mode in settings to use the Whisper API instead.",
+          }),
+        );
+      }
       // macOS ネイティブ (Speech.framework) で文字起こし
       text = yield* Effect.tryPromise({
         try: () =>
@@ -122,7 +132,7 @@ export function transcribe(recording: RecordingMetadata, trackKind: TrackKind) {
         return yield* Effect.fail(
           new TranscriptionError({
             reason:
-              "API key is not configured. Please set your OpenAI API key in transcription settings, or enable native transcription on macOS.",
+              "API key is not configured. Please set your OpenAI API key in settings.",
           }),
         );
       }

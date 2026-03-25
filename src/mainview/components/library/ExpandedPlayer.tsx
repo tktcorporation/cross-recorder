@@ -5,7 +5,6 @@ import { useWaveformData } from "../../hooks/useWaveformData.js";
 import { WaveformTrack } from "../WaveformTrack.js";
 import { PlaybackController } from "../../audio/PlaybackController.js";
 import { Button } from "../ui/button.js";
-import { TranscriptionSettings } from "../transcription/TranscriptionSettings.js";
 import type {
   RecordingMetadata,
   TrackInfo,
@@ -80,7 +79,6 @@ export function ExpandedPlayer({ recording }: Props) {
     recording.transcription ?? null,
   );
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const controllerRef = useRef<PlaybackController | null>(null);
@@ -309,64 +307,52 @@ export function ExpandedPlayer({ recording }: Props) {
       )}
 
       {/* コントロール */}
-      <div className="flex items-center gap-3">
-        <Button
-          variant="default"
-          size="icon"
-          onClick={handlePlayPause}
-          disabled={isLoading}
-          className="h-8 w-8 shrink-0 rounded-full bg-playback text-playback-foreground hover:bg-playback/90"
-        >
-          {isLoading ? "..." : isPlaying ? "\u23F8" : "\u25B6"}
-        </Button>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="default"
+            size="icon"
+            onClick={handlePlayPause}
+            disabled={isLoading}
+            className="h-8 w-8 shrink-0 rounded-full bg-playback text-playback-foreground hover:bg-playback/90"
+          >
+            {isLoading ? "..." : isPlaying ? "\u23F8" : "\u25B6"}
+          </Button>
 
-        <span className="font-mono text-xs text-muted-foreground">
-          {formatTime(currentTime)} / {formatTime(duration)}
-        </span>
+          <span className="font-mono text-xs text-muted-foreground">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </span>
+        </div>
 
-        <div className="flex-1" />
-
-        {/* アクションボタン */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleTranscribe}
-          disabled={isLoading || isTranscribing || tracks.length === 0}
-          className="text-xs text-muted-foreground hover:text-foreground"
-        >
-          {isTranscribing ? "Transcribing..." : "Transcribe"}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowSettings((v) => !v)}
-          className="text-xs text-muted-foreground hover:text-foreground"
-          title="Transcription settings"
-        >
-          Settings
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleOpenFolder}
-          className="text-xs text-muted-foreground hover:text-foreground"
-        >
-          Open folder
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleDelete}
-          className="text-xs text-muted-foreground hover:text-destructive"
-        >
-          Delete
-        </Button>
+        {/* アクションボタン — 折り返し可能にして幅が狭くても潰れないようにする */}
+        <div className="flex flex-wrap gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleTranscribe}
+            disabled={isLoading || isTranscribing || tracks.length === 0}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {isTranscribing ? "Transcribing..." : "Transcribe"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleOpenFolder}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Open folder
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDelete}
+            className="text-xs text-muted-foreground hover:text-destructive"
+          >
+            Delete
+          </Button>
+        </div>
       </div>
-
-      {/* 文字起こし設定パネル */}
-      {showSettings && (
-        <TranscriptionSettings onClose={() => setShowSettings(false)} />
-      )}
 
       {/* 文字起こし結果 */}
       {transcription && transcription.status === "done" && transcription.text && (

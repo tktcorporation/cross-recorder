@@ -176,6 +176,10 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
             Effect.catchAll((err) => {
               const reason =
                 "reason" in err ? String(err.reason) : String(err);
+              console.error(
+                `[Transcription] failed: recording=${params.recordingId} track=${params.trackKind} error=${err._tag ?? "Unknown"}`,
+                reason,
+              );
               const errorResult: TranscriptionResult = {
                 status: "error",
                 error: reason,

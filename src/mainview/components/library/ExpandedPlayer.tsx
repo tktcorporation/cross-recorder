@@ -5,7 +5,12 @@ import { useWaveformData } from "../../hooks/useWaveformData.js";
 import { WaveformTrack } from "../WaveformTrack.js";
 import { PlaybackController } from "../../audio/PlaybackController.js";
 import { Button } from "../ui/button.js";
-import type { RecordingMetadata, TrackInfo } from "@shared/types.js";
+import { TranscriptionSettings } from "../transcription/TranscriptionSettings.js";
+import type {
+  RecordingMetadata,
+  TrackInfo,
+  TranscriptionResult,
+} from "@shared/types.js";
 
 /**
  * RecordingCard 展開時に表示される再生プレーヤー。
@@ -69,6 +74,13 @@ export function ExpandedPlayer({ recording }: Props) {
   const [audioBuffers, setAudioBuffers] = useState<AudioBuffer[]>([]);
   const [tracks, setTracks] = useState<TrackInfo[]>([]);
   const [containerWidth, setContainerWidth] = useState(0);
+
+  // 文字起こし関連の状態
+  const [transcription, setTranscription] = useState<TranscriptionResult | null>(
+    recording.transcription ?? null,
+  );
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const controllerRef = useRef<PlaybackController | null>(null);
@@ -221,6 +233,47 @@ export function ExpandedPlayer({ recording }: Props) {
     [isPlaying, startTimeUpdates],
   );
 
+  // バックエンドからの文字起こし進捗通知を受け取る
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        recordingId: string;
+        result: TranscriptionResult;
+      };
+      if (detail.recordingId === recording.id) {
+        setTranscription(detail.result);
+        setIsTranscribing(detail.result.status === "transcribing");
+      }
+    };
+    window.addEventListener("transcription-status", handler);
+    return () => window.removeEventListener("transcription-status", handler);
+  }, [recording.id]);
+
+  const handleTranscribe = useCallback(async () => {
+    // mic トラックを優先、なければ最初のトラックを使う
+    const targetTrack =
+      tracks.find((t) => t.trackKind === "mic") ?? tracks[0];
+    if (!targetTrack) return;
+
+    setIsTranscribing(true);
+    setTranscription({ status: "transcribing", trackKind: targetTrack.trackKind });
+
+    try {
+      const result = await request.transcribeRecording({
+        recordingId: recording.id,
+        trackKind: targetTrack.trackKind,
+      });
+      setTranscription(result);
+    } catch (err) {
+      setTranscription({
+        status: "error",
+        error: String(err),
+      });
+    } finally {
+      setIsTranscribing(false);
+    }
+  }, [recording.id, request, tracks]);
+
   const handleOpenFolder = async () => {
     await request.openFileLocation({ filePath: recording.filePath });
   };
@@ -277,6 +330,24 @@ export function ExpandedPlayer({ recording }: Props) {
         <Button
           variant="ghost"
           size="sm"
+          onClick={handleTranscribe}
+          disabled={isLoading || isTranscribing || tracks.length === 0}
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
+          {isTranscribing ? "Transcribing..." : "Transcribe"}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowSettings((v) => !v)}
+          className="text-xs text-muted-foreground hover:text-foreground"
+          title="Transcription settings"
+        >
+          Settings
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleOpenFolder}
           className="text-xs text-muted-foreground hover:text-foreground"
         >
@@ -291,6 +362,30 @@ export function ExpandedPlayer({ recording }: Props) {
           Delete
         </Button>
       </div>
+
+      {/* 文字起こし設定パネル */}
+      {showSettings && (
+        <TranscriptionSettings onClose={() => setShowSettings(false)} />
+      )}
+
+      {/* 文字起こし結果 */}
+      {transcription && transcription.status === "done" && transcription.text && (
+        <div className="rounded-lg border border-border bg-card/50 p-3">
+          <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Transcription
+          </h4>
+          <p className="whitespace-pre-wrap text-xs leading-relaxed text-card-foreground">
+            {transcription.text}
+          </p>
+        </div>
+      )}
+      {transcription && transcription.status === "error" && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+          <p className="text-xs text-destructive">
+            {transcription.error}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

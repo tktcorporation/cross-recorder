@@ -53,6 +53,37 @@ export function addRecording(metadata: RecordingMetadata) {
   });
 }
 
+/**
+ * 既存の録音メタデータを部分更新する。
+ * 文字起こし結果の保存など、録音作成後にメタデータを追記する場合に使用。
+ */
+export function updateRecording(
+  recordingId: string,
+  update: Partial<RecordingMetadata>,
+) {
+  return Effect.tryPromise({
+    try: async () => {
+      const recordings = readMetadataFile();
+      const index = recordings.findIndex((r) => r.id === recordingId);
+      if (index === -1) {
+        throw new RecordingNotFoundError({ recordingId });
+      }
+      recordings[index] = { ...recordings[index]!, ...update };
+      writeMetadataFile(recordings);
+      return recordings[index]!;
+    },
+    catch: (error) => {
+      if (error instanceof RecordingNotFoundError) {
+        return error;
+      }
+      return new FileWriteError({
+        path: metadataPath,
+        reason: String(error),
+      });
+    },
+  });
+}
+
 export function deleteRecording(recordingId: string) {
   return Effect.tryPromise({
     try: async () => {

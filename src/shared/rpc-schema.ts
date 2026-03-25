@@ -5,6 +5,8 @@ import type {
   RecordingMetadata,
   RecordingState,
   TrackKind,
+  TranscriptionConfig,
+  TranscriptionResult,
   UpdateStatus,
 } from "./types.js";
 
@@ -93,6 +95,25 @@ export type CrossRecorderRPC = {
         params: Record<string, never>;
         response: { version: string; channel: string };
       };
+      /**
+       * 指定した録音の指定トラックを文字起こしする。
+       * OpenAI Whisper API (互換) を使用し、結果をメタデータとファイルに保存する。
+       */
+      transcribeRecording: {
+        params: { recordingId: string; trackKind: TrackKind };
+        response: TranscriptionResult;
+      };
+      getTranscriptionConfig: {
+        params: Record<string, never>;
+        response: TranscriptionConfig & {
+          /** macOS ネイティブ文字起こしがこのプラットフォームで利用可能か */
+          nativeAvailable: boolean;
+        };
+      };
+      setTranscriptionConfig: {
+        params: TranscriptionConfig;
+        response: { success: boolean };
+      };
     };
     messages: {
       logFromRenderer: { level: string; message: string };
@@ -117,6 +138,11 @@ export type CrossRecorderRPC = {
       };
       nativeSystemAudioError: {
         reason: string;
+      };
+      /** 文字起こしの進捗・完了をフロントエンドに通知する */
+      transcriptionStatus: {
+        recordingId: string;
+        result: TranscriptionResult;
       };
     };
   }>;

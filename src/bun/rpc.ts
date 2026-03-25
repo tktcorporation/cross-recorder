@@ -1,9 +1,16 @@
 import { BrowserView } from "electrobun/bun";
 import { Effect } from "effect";
 import type { CrossRecorderRPC } from "../shared/rpc-schema.js";
-import type { RecordingConfig, TrackKind } from "../shared/types.js";
+import type {
+  RecordingConfig,
+  TrackKind,
+  TranscriptionConfig,
+  TranscriptionResult,
+} from "../shared/types.js";
 import * as FileService from "./services/FileService.js";
 import * as RecordingManager from "./services/RecordingManager.js";
+import * as NativeTranscription from "./services/NativeTranscription.js";
+import * as TranscriptionService from "./services/TranscriptionService.js";
 import * as UpdateService from "./services/UpdateService.js";
 import { NativeSystemAudioCapture } from "./services/NativeSystemAudioCapture.js";
 
@@ -134,6 +141,63 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
 
       getAppVersion: async () => {
         return Effect.runPromise(UpdateService.getAppVersion());
+      },
+
+      transcribeRecording: async (params: {
+        recordingId: string;
+        trackKind: TrackKind;
+      }): Promise<TranscriptionResult> => {
+        // 録音メタデータを取得
+        const recordings = await Effect.runPromise(
+          RecordingManager.getRecordings(),
+        );
+        const recording = recordings.find((r) => r.id === params.recordingId);
+        if (!recording) {
+          return { status: "error", error: "Recording not found" };
+        }
+
+        // 進捗を通知
+        rpc.send.transcriptionStatus({
+          recordingId: params.recordingId,
+          result: { status: "transcribing", trackKind: params.trackKind },
+        });
+
+        try {
+          const result = await Effect.runPromise(
+            TranscriptionService.transcribe(recording, params.trackKind),
+          );
+          rpc.send.transcriptionStatus({
+            recordingId: params.recordingId,
+            result,
+          });
+          return result;
+        } catch (err) {
+          const errorResult: TranscriptionResult = {
+            status: "error",
+            error: String(err),
+            trackKind: params.trackKind,
+          };
+          rpc.send.transcriptionStatus({
+            recordingId: params.recordingId,
+            result: errorResult,
+          });
+          return errorResult;
+        }
+      },
+
+      getTranscriptionConfig: async () => {
+        const config = await Effect.runPromise(
+          TranscriptionService.loadConfig(),
+        );
+        return {
+          ...config,
+          nativeAvailable: NativeTranscription.isAvailable(),
+        };
+      },
+
+      setTranscriptionConfig: async (params: TranscriptionConfig) => {
+        await Effect.runPromise(TranscriptionService.saveConfig(params));
+        return { success: true };
       },
     },
 

@@ -30,6 +30,11 @@ const rpc = Electroview.defineRPC<CrossRecorderRPC>({
           new CustomEvent("native-system-audio-error", { detail: data }),
         );
       },
+      transcriptionStatus: (data) => {
+        window.dispatchEvent(
+          new CustomEvent("transcription-status", { detail: data }),
+        );
+      },
     },
   },
 });

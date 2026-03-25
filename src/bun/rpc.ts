@@ -9,7 +9,6 @@ import type {
 } from "../shared/types.js";
 import * as FileService from "./services/FileService.js";
 import * as RecordingManager from "./services/RecordingManager.js";
-import * as NativeTranscription from "./services/NativeTranscription.js";
 import * as TranscriptionService from "./services/TranscriptionService.js";
 import * as UpdateService from "./services/UpdateService.js";
 import { NativeSystemAudioCapture } from "./services/NativeSystemAudioCapture.js";
@@ -189,9 +188,11 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
         const config = await Effect.runPromise(
           TranscriptionService.loadConfig(),
         );
+        // macOS であればネイティブ文字起こしオプションを表示する。
+        // バイナリが未ビルドでもトグルを表示し、実行時にエラーで案内する。
         return {
           ...config,
-          nativeAvailable: NativeTranscription.isAvailable(),
+          nativeAvailable: process.platform === "darwin",
         };
       },
 

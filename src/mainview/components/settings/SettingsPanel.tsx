@@ -125,7 +125,7 @@ export function SettingsPanel({ onClose }: Props) {
         </>
       )}
 
-      <label className="flex w-20 flex-col gap-1">
+      <label className="flex flex-col gap-1">
         <span className="text-xs text-muted-foreground">Language</span>
         <input
           type="text"
@@ -134,11 +134,11 @@ export function SettingsPanel({ onClose }: Props) {
             setConfig((c) => ({ ...c, language: e.target.value }))
           }
           placeholder="ja"
-          className="rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-24 rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
         />
       </label>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end gap-2 pt-1">
         <Button variant="ghost" size="sm" onClick={onClose}>
           Cancel
         </Button>

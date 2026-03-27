@@ -77,36 +77,39 @@ export function RecordingView() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* 中央コンテンツ — やや上寄りに配置 */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-5 px-8 pb-16">
-        {/* RecordButton + PulseRings */}
-        <div
-          className="relative flex items-center justify-center"
-          style={{ width: 160, height: 160 }}
-        >
-          <PulseRings
-            isRecording={isRecording}
-            micLevel={micLevel}
-            systemLevel={systemLevel}
-          />
-          <RecordButton
-            state={recordingState}
-            disabled={isIdle && noSourceSelected}
-            onClick={handleRecordClick}
-          />
+      {/* 中央コンテンツ — 録音ボタンを中心にやや上寄り配置 */}
+      <div className="flex flex-1 flex-col items-center justify-center px-8 pb-12">
+        {/* 録音ボタン + タイマー — 主要操作エリア */}
+        <div className="flex flex-col items-center gap-6">
+          {/* RecordButton + PulseRings */}
+          <div
+            className="relative flex items-center justify-center"
+            style={{ width: 160, height: 160 }}
+          >
+            <PulseRings
+              isRecording={isRecording}
+              micLevel={micLevel}
+              systemLevel={systemLevel}
+            />
+            <RecordButton
+              state={recordingState}
+              disabled={isIdle && noSourceSelected}
+              onClick={handleRecordClick}
+            />
+          </div>
+
+          {/* タイマー — ボタンとの間に適度な距離 */}
+          <p
+            className="font-mono text-2xl tabular-nums tracking-widest text-foreground/90"
+            aria-live="polite"
+            aria-atomic
+          >
+            {formatTime(elapsedMs)}
+          </p>
         </div>
 
-        {/* タイマー */}
-        <p
-          className="font-mono text-3xl tabular-nums tracking-wider text-foreground"
-          aria-live="polite"
-          aria-atomic
-        >
-          {formatTime(elapsedMs)}
-        </p>
-
-        {/* 波形 / PostRecordingPlayer */}
-        <div className="w-full max-w-md">
+        {/* 波形 / PostRecordingPlayer — セクション分離 */}
+        <div className="mt-6 w-full max-w-md">
           <AnimatePresence mode="wait">
             {isRecording ? (
               <motion.div
@@ -132,36 +135,39 @@ export function RecordingView() {
           </AnimatePresence>
         </div>
 
-        {/* エラー */}
-        <AnimatePresence>
-          {recordingError && (
-            <motion.p
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2 }}
-              className="max-w-sm text-center text-sm text-destructive"
-              role="alert"
-            >
-              {recordingError}
-            </motion.p>
+        {/* ステータスメッセージ — エラー・取得中・劣化 */}
+        <div className="mt-4 flex min-h-[24px] flex-col items-center">
+          <AnimatePresence>
+            {recordingError && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2 }}
+                className="max-w-sm rounded-md bg-destructive/10 px-3 py-1.5"
+              >
+                <p className="text-center text-xs text-destructive" role="alert">
+                  {recordingError}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {sessionState.type === "acquiring" && (
+            <p className="text-xs text-muted-foreground">
+              Acquiring audio devices...
+            </p>
           )}
-        </AnimatePresence>
 
-        {sessionState.type === "acquiring" && (
-          <p className="text-sm text-muted-foreground">
-            Acquiring audio devices...
-          </p>
-        )}
+          {sessionState.type === "degraded" && (
+            <p className="text-xs text-muted-foreground">
+              Recording with {sessionState.activeTracks.join(" + ")} only
+            </p>
+          )}
+        </div>
 
-        {sessionState.type === "degraded" && (
-          <p className="text-sm text-muted-foreground">
-            Recording with {sessionState.activeTracks.join(" + ")} only
-          </p>
-        )}
-
-        {/* ソースコントロール — 録音ボタン近くに配置 */}
-        <div className="w-full max-w-xs">
+        {/* ソースコントロール — 下部に視覚的に区切って配置 */}
+        <div className="mt-6 w-full max-w-xs">
           <AudioSourceControls disabled={!isIdle} />
         </div>
       </div>

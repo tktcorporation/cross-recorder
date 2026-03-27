@@ -288,8 +288,9 @@ export function ExpandedPlayer({ recording }: Props) {
     <div ref={containerRef} className="flex flex-col gap-3">
       {/* 波形表示 */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-6">
-          <span className="text-xs text-muted-foreground">Loading...</span>
+        <div className="flex items-center justify-center gap-2 py-6">
+          <div className="h-3 w-3 animate-spin rounded-full border border-muted-foreground/30 border-t-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Loading audio...</span>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -306,32 +307,32 @@ export function ExpandedPlayer({ recording }: Props) {
         </div>
       )}
 
-      {/* コントロール */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="default"
-            size="icon"
-            onClick={handlePlayPause}
-            disabled={isLoading}
-            className="h-8 w-8 shrink-0 rounded-full bg-playback text-playback-foreground hover:bg-playback/90"
-          >
-            {isLoading ? "..." : isPlaying ? "\u23F8" : "\u25B6"}
-          </Button>
+      {/* 再生コントロール */}
+      <div className="flex items-center gap-3">
+        <Button
+          variant="default"
+          size="icon"
+          onClick={handlePlayPause}
+          disabled={isLoading}
+          className="h-8 w-8 shrink-0 rounded-full bg-playback text-playback-foreground hover:bg-playback/90"
+        >
+          {isLoading ? "..." : isPlaying ? "\u23F8" : "\u25B6"}
+        </Button>
 
-          <span className="font-mono text-xs text-muted-foreground">
-            {formatTime(currentTime)} / {formatTime(duration)}
-          </span>
-        </div>
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </span>
+      </div>
 
-        {/* アクションボタン — 折り返し可能にして幅が狭くても潰れないようにする */}
+      {/* アクション — 区切り線で再生コントロールと分離 */}
+      <div className="border-t border-border/50 pt-2">
         <div className="flex flex-wrap gap-1">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleTranscribe}
             disabled={isLoading || isTranscribing || tracks.length === 0}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="h-7 text-xs text-muted-foreground hover:text-foreground"
           >
             {isTranscribing ? "Transcribing..." : "Transcribe"}
           </Button>
@@ -339,15 +340,16 @@ export function ExpandedPlayer({ recording }: Props) {
             variant="ghost"
             size="sm"
             onClick={handleOpenFolder}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="h-7 text-xs text-muted-foreground hover:text-foreground"
           >
             Open folder
           </Button>
+          <div className="flex-1" />
           <Button
             variant="ghost"
             size="sm"
             onClick={handleDelete}
-            className="text-xs text-muted-foreground hover:text-destructive"
+            className="h-7 text-xs text-muted-foreground hover:text-destructive"
           >
             Delete
           </Button>

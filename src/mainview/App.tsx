@@ -10,8 +10,8 @@ export default function App() {
   return (
     <div className="flex min-h-screen flex-col overflow-hidden bg-background">
       {/* タイトルバー — Electrobun ウィンドウのドラッグ領域 */}
-      <header className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-card px-4">
-        <h1 className="text-sm font-semibold tracking-tight text-foreground">
+      <header className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-card/80 px-4">
+        <h1 className="text-xs font-semibold tracking-wide text-foreground/80">
           Cross Recorder
         </h1>
         <UpdateNotification />

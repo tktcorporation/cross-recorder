@@ -26,17 +26,23 @@ export function AudioSourceControls({ disabled }: AudioSourceControlsProps) {
   const noSourceSelected = !micEnabled && !systemAudioEnabled;
 
   return (
-    <div className="flex flex-col gap-3 px-4 py-3">
+    <div className="flex flex-col gap-3 rounded-lg border border-border/50 bg-card/30 px-4 py-3">
       {/* マイク行 */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          {/* マイクアイコン — 視覚的にソース種別を即座に識別できるようにする */}
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-muted-foreground">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" x2="12" y1="19" y2="22" />
+          </svg>
           <label
             htmlFor="mic-switch"
             className="text-sm font-medium text-foreground"
           >
             Mic
           </label>
-          <Badge variant="secondary">Mono</Badge>
+          <Badge variant="secondary" className="text-[10px]">Mono</Badge>
         </div>
         <Switch
           id="mic-switch"
@@ -65,16 +71,28 @@ export function AudioSourceControls({ disabled }: AudioSourceControlsProps) {
         </select>
       )}
 
+      {/* 区切り線 */}
+      <div className="border-t border-border/30" />
+
       {/* システム音声行 */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          {/* スピーカーアイコン */}
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-muted-foreground">
+            <path d="M2 10v3" />
+            <path d="M6 6v11" />
+            <path d="M10 3v18" />
+            <path d="M14 8v7" />
+            <path d="M18 5v13" />
+            <path d="M22 10v3" />
+          </svg>
           <label
             htmlFor="system-audio-switch"
             className="text-sm font-medium text-foreground"
           >
             System Audio
           </label>
-          <Badge variant="secondary">Stereo</Badge>
+          <Badge variant="secondary" className="text-[10px]">Stereo</Badge>
         </div>
         <Switch
           id="system-audio-switch"
@@ -84,10 +102,10 @@ export function AudioSourceControls({ disabled }: AudioSourceControlsProps) {
         />
       </div>
 
-      {/* 警告メッセージ — 両方無効の場合 */}
+      {/* 警告メッセージ — 両方無効の場合、背景色で目立たせる */}
       {noSourceSelected && (
-        <p className="text-center text-xs text-muted-foreground">
-          Enable at least one audio source to start recording
+        <p className="rounded-md bg-muted/50 py-1.5 text-center text-[11px] text-muted-foreground">
+          Enable at least one source to record
         </p>
       )}
     </div>

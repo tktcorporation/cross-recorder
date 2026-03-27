@@ -87,32 +87,41 @@ export function RecordingCard({ recording, isExpanded, onToggleExpand }: Props) 
       >
         {/* クリック可能なヘッダー部分 */}
         <CardHeader
-          className="cursor-pointer select-none p-4 transition-colors hover:bg-accent/50"
+          className="cursor-pointer select-none p-3 transition-colors hover:bg-accent/50"
           onClick={onToggleExpand}
         >
           <div className="flex items-center gap-3">
             <MiniWaveform />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-card-foreground">
-                {recording.fileName}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {formatDate(recording.createdAt)}
-                {" \u00B7 "}
-                {formatDuration(recording.durationMs)}
-                {" \u00B7 "}
-                {formatFileSize(recording.fileSizeBytes)}
-              </p>
-            </div>
-            {hasTracks && (
-              <div className="flex shrink-0 gap-1">
-                {recording.tracks.map((track) => (
-                  <Badge key={track.trackKind} variant="secondary" className="text-[10px]">
-                    {trackLabel(track.trackKind, track.channels)}
-                  </Badge>
-                ))}
+              <div className="flex items-center gap-2">
+                <p className="truncate text-sm font-medium text-card-foreground">
+                  {recording.fileName}
+                </p>
               </div>
-            )}
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground">
+                  {formatDate(recording.createdAt)}
+                </span>
+                <span className="text-[11px] text-muted-foreground/40">&middot;</span>
+                <span className="text-[11px] tabular-nums text-muted-foreground">
+                  {formatDuration(recording.durationMs)}
+                </span>
+                <span className="text-[11px] text-muted-foreground/40">&middot;</span>
+                <span className="text-[11px] tabular-nums text-muted-foreground">
+                  {formatFileSize(recording.fileSizeBytes)}
+                </span>
+              </div>
+              {/* バッジをメタ情報の下に移動 — 狭い幅でも溢れない */}
+              {hasTracks && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {recording.tracks.map((track) => (
+                    <Badge key={track.trackKind} variant="secondary" className="text-[10px]">
+                      {trackLabel(track.trackKind, track.channels)}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </CardHeader>
 
@@ -127,7 +136,7 @@ export function RecordingCard({ recording, isExpanded, onToggleExpand }: Props) 
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="overflow-hidden"
             >
-              <CardContent className="border-t border-border p-4">
+              <CardContent className="border-t border-border/50 p-3">
                 <ExpandedPlayer recording={recording} />
               </CardContent>
             </motion.div>

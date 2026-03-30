@@ -1,5 +1,11 @@
 # cross-recorder
 
+## 0.11.3
+
+### Patch Changes
+
+- [#50](https://github.com/tktcorporation/cross-recorder/pull/50) [`7a26b7c`](https://github.com/tktcorporation/cross-recorder/commit/7a26b7cd215d9b619bdbaad5e0ae5bacf371ddc6) Thanks [@tktcorporation](https://github.com/tktcorporation)! - ネイティブ文字起こしバイナリ未ビルド時に Whisper API へ自動フォールバックするよう修正。サイドバーの横幅崩れを修正。
+
 ## 0.11.2
 
 ### Patch Changes

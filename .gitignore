@@ -42,3 +42,6 @@ recordings/
 
 build/
 artifacts/
+
+# ziku template sync temp files
+.devenv-temp/

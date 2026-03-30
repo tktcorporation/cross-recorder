@@ -104,21 +104,16 @@ export function transcribe(recording: RecordingMetadata, trackKind: TrackKind) {
 
     // ネイティブ文字起こしを試みるか判定
     // macOS でユーザーがネイティブを希望している場合はネイティブを優先する。
-    // バイナリが見つからない場合は API にフォールバックせず明確なエラーを出す。
+    // バイナリが見つからない場合は API キーがあれば自動フォールバックする。
+    // どちらも利用不可の場合のみエラーを出す。
     const wantsNative =
       config.useNative && process.platform === "darwin";
+    const nativeReady = wantsNative && NativeTranscription.isAvailable();
+    const apiReady = !!config.apiKey;
 
     let text: string;
 
-    if (wantsNative) {
-      if (!NativeTranscription.isAvailable()) {
-        return yield* Effect.fail(
-          new TranscriptionError({
-            reason:
-              "Native transcription binary not found. Run `pnpm build:native` to build it, or disable native mode in settings to use the Whisper API instead.",
-          }),
-        );
-      }
+    if (nativeReady) {
       // macOS ネイティブ (Speech.framework) で文字起こし
       text = yield* Effect.tryPromise({
         try: () =>
@@ -126,22 +121,28 @@ export function transcribe(recording: RecordingMetadata, trackKind: TrackKind) {
         catch: (error) =>
           new TranscriptionError({ reason: String(error) }),
       });
-    } else {
+    } else if (apiReady) {
       // OpenAI Whisper API で文字起こし
-      if (!config.apiKey) {
-        return yield* Effect.fail(
-          new TranscriptionError({
-            reason:
-              "API key is not configured. Please set your OpenAI API key in settings.",
-          }),
-        );
-      }
-
+      // ネイティブ希望だがバイナリ未ビルドの場合もここにフォールバックする
       text = yield* Effect.tryPromise({
         try: () => callWhisperApi(config, track.filePath),
         catch: (error) =>
           new TranscriptionError({ reason: String(error) }),
       });
+    } else {
+      // ネイティブもAPIも利用不可 — 両方の解決策を案内する
+      const hints: string[] = [];
+      if (wantsNative) {
+        hints.push(
+          "Native mode is enabled but the binary could not be prepared. Ensure Xcode Command Line Tools are installed (`xcode-select --install`), or run `pnpm build:native` manually.",
+        );
+      }
+      hints.push(
+        "Alternatively, set your OpenAI API key in settings to use the Whisper API.",
+      );
+      return yield* Effect.fail(
+        new TranscriptionError({ reason: hints.join(" ") }),
+      );
     }
 
     // 結果を .txt ファイルに保存

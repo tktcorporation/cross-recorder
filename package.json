@@ -7,7 +7,7 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "start": "vite build && electrobun dev",
-    "dev": "electrobun dev --watch",
+    "dev": "bash scripts/build-native.sh && electrobun dev --watch",
     "dev:hmr": "concurrently \"bun run hmr\" \"bun run start\"",
     "hmr": "vite --port 5173",
     "build:native": "bash scripts/build-native.sh",

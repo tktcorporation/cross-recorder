@@ -14,12 +14,23 @@ import * as path from "node:path";
 /** ネイティブ文字起こしバイナリの名前 */
 const BINARY_NAME = "transcribe-audio";
 
+/** Swift ソースの相対パス（プロジェクトルートからの相対） */
+const SWIFT_SOURCE_REL = path.join(
+  "src",
+  "native",
+  "macos",
+  "transcribe-audio.swift",
+);
+
 /**
  * ネイティブ文字起こしバイナリのパスを探す。
- * NativeSystemAudioCapture.findBinaryPath() と同じ探索戦略。
+ * NativeSystemAudioCapture.findBinaryPath() と同じ探索戦略に加え、
+ * macOS 開発環境ではバイナリが未ビルドなら Swift ソースから自動コンパイルする。
  *
- * 開発時: build/native/transcribe-audio
- * 本番時: アプリバンドル内の native/transcribe-audio
+ * 探索順序:
+ *  1. 開発パス: build/native/transcribe-audio
+ *  2. 本番パス: アプリバンドル内の native/transcribe-audio
+ *  3. 自動ビルド: Swift ソースが存在すれば swiftc でコンパイル（macOS のみ）
  */
 function findBinaryPath(): string | null {
   // Development: project root / build / native
@@ -36,12 +47,60 @@ function findBinaryPath(): string | null {
   );
   if (fs.existsSync(prodPath)) return prodPath;
 
-  return null;
+  // Development auto-build: Swift ソースからオンデマンドでコンパイルする。
+  // macOS 開発環境では swiftc が Xcode Command Line Tools で利用可能。
+  // 初回のみ 2-3 秒かかるが、以降はビルド済みバイナリがキャッシュされる。
+  return tryBuildFromSource();
+}
+
+/**
+ * Swift ソースからバイナリをコンパイルする。
+ * macOS + Swift ソースが存在する場合のみ実行。失敗時は null を返す。
+ */
+function tryBuildFromSource(): string | null {
+  if (process.platform !== "darwin") return null;
+
+  const srcPath = path.join(process.cwd(), SWIFT_SOURCE_REL);
+  if (!fs.existsSync(srcPath)) return null;
+
+  const outputDir = path.join(process.cwd(), "build", "native");
+  const outputPath = path.join(outputDir, BINARY_NAME);
+
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  console.log(
+    "[NativeTranscription] Binary not found, auto-building from Swift source...",
+  );
+
+  const result = Bun.spawnSync(
+    [
+      "swiftc",
+      "-O",
+      "-o",
+      outputPath,
+      "-framework",
+      "Speech",
+      "-framework",
+      "Foundation",
+      srcPath,
+    ],
+    { stderr: "pipe" },
+  );
+
+  if (result.exitCode !== 0) {
+    const stderr = new TextDecoder().decode(result.stderr);
+    console.error("[NativeTranscription] Auto-build failed:", stderr);
+    return null;
+  }
+
+  fs.chmodSync(outputPath, 0o755);
+  console.log("[NativeTranscription] Auto-build succeeded:", outputPath);
+  return outputPath;
 }
 
 /**
  * macOS ネイティブ文字起こしがこのプラットフォームで利用可能か。
- * macOS + ビルド済みバイナリが存在する場合に true。
+ * macOS + バイナリが存在する（または自動ビルドできる）場合に true。
  */
 export function isAvailable(): boolean {
   return process.platform === "darwin" && findBinaryPath() !== null;

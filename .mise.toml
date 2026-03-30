@@ -1,29 +1,22 @@
 [tools]
-node = ["22", "24"]
+node = [ "22", "24" ]
 uv = "latest"
 python = "3.14"
 pnpm = "10"
 jj = "latest"
-
 "npm:@anthropic-ai/claude-code" = "latest"
 "npm:@openai/codex" = "latest"
 "npm:@google/gemini-cli" = "latest"
-
 "npm:@antfu/ni" = "latest"
-
-# Browser automation
 "npm:playwright" = "latest"
-
 
 [settings]
 experimental = true
-# .nvmrcファイルを自動的に読み込む設定
 legacy_version_file = true
-# ディレクトリ移動時に自動的にツールをインストール
 auto_install = true
 
-# pipx バックエンドで uvx を使う設定
-pipx.uvx = true
+[settings.pipx]
+uvx = true
 
 [tasks.chromium-path]
 run = "ls ~/.cache/ms-playwright/chromium-*/chrome-linux/chrome | head -1"
@@ -32,3 +25,7 @@ description = "Get Playwright Chromium executable path"
 [tasks.berm]
 run = "npx @tktco/berm@latest"
 description = "Run berm CLI"
+
+[tasks.ziku]
+run = "npx ziku@latest"
+description = "Run ziku CLI"

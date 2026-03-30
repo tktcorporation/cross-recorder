@@ -1,14 +1,6 @@
 {
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-  },
   "permissions": {
-    "allow": [
-      "Bash(find:*)",
-      "Bash(rg:*)",
-      "Bash(grep:*)",
-      "Bash(ls:*)"
-    ],
+    "allow": ["Bash(find:*)", "Bash(rg:*)", "Bash(grep:*)", "Bash(ls:*)"],
     "deny": [
       "Read(./secrets/**)",
       "Write(./secrets/**)",
@@ -20,29 +12,6 @@
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": ["chrome-devtools"],
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/ensure-jj.sh\""
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/prefer-jj.sh\""
-          }
-        ]
-      }
-    ]
-  },
   "enabledPlugins": {
     "document-skills@anthropic-agent-skills": true,
     "example-skills@anthropic-agent-skills": true,
@@ -69,7 +38,42 @@
     "claude-code-setup@claude-plugins-official": true,
     "playground@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
-    "qodo-skills@claude-plugins-official": true
+    "qodo-skills@claude-plugins-official": true,
+    "mintlify@claude-plugins-official": true,
+    "clangd-lsp@claude-plugins-official": true,
+    "csharp-lsp@claude-plugins-official": true,
+    "jdtls-lsp@claude-plugins-official": true,
+    "kotlin-lsp@claude-plugins-official": true,
+    "lua-lsp@claude-plugins-official": true,
+    "php-lsp@claude-plugins-official": true,
+    "ruby-lsp@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true,
+    "playwright@claude-plugins-official": false,
+    "serena@claude-plugins-official": false,
+    "claude-api@anthropic-agent-skills": true,
+    "adspirer-ads-agent@claude-plugins-official": true,
+    "legalzoom@claude-plugins-official": true,
+    "data@claude-plugins-official": true,
+    "productivity@knowledge-work-plugins": true,
+    "enterprise-search@knowledge-work-plugins": true,
+    "cowork-plugin-management@knowledge-work-plugins": true,
+    "sales@knowledge-work-plugins": true,
+    "finance@knowledge-work-plugins": true,
+    "legal@knowledge-work-plugins": true,
+    "marketing@knowledge-work-plugins": true,
+    "customer-support@knowledge-work-plugins": true,
+    "product-management@knowledge-work-plugins": true,
+    "engineering@knowledge-work-plugins": true,
+    "human-resources@knowledge-work-plugins": true,
+    "design@knowledge-work-plugins": true,
+    "operations@knowledge-work-plugins": true,
+    "financial-analysis@financial-services-plugins": true,
+    "investment-banking@financial-services-plugins": true,
+    "equity-research@financial-services-plugins": true,
+    "private-equity@financial-services-plugins": true,
+    "wealth-management@financial-services-plugins": true,
+    "lseg@financial-services-plugins": true,
+    "sp-global@financial-services-plugins": true
   },
   "extraKnownMarketplaces": {
     "anthropic-agent-skills": {
@@ -80,5 +84,9 @@
     }
   },
   "language": "japanese",
-  "plansDirectory": ".claude/plans"
+  "plansDirectory": ".claude/plans",
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/statusline.sh\""
+  }
 }

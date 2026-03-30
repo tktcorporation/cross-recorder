@@ -132,9 +132,9 @@ export function transcribe(recording: RecordingMetadata, trackKind: TrackKind) {
     } else {
       // ネイティブもAPIも利用不可 — 両方の解決策を案内する
       const hints: string[] = [];
-      if (wantsNative && !NativeTranscription.isAvailable()) {
+      if (wantsNative) {
         hints.push(
-          "Native mode is enabled but the binary was not found. Run `pnpm build:native` to build it.",
+          "Native mode is enabled but the binary could not be prepared. Ensure Xcode Command Line Tools are installed (`xcode-select --install`), or run `pnpm build:native` manually.",
         );
       }
       hints.push(

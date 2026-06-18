@@ -1,6 +1,14 @@
 {
+  "effortLevel": "xhigh",
+  "ultracode": true,
+  "enableWorkflows": true,
   "permissions": {
-    "allow": ["Bash(find:*)", "Bash(rg:*)", "Bash(grep:*)", "Bash(ls:*)"],
+    "allow": [
+      "Bash(find:*)",
+      "Bash(rg:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)"
+    ],
     "deny": [
       "Read(./secrets/**)",
       "Write(./secrets/**)",
@@ -11,15 +19,89 @@
     ]
   },
   "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": ["chrome-devtools"],
+  "enabledMcpjsonServers": [
+    "chrome-devtools"
+  ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE 'lsof.*-ti.*\\|.*xargs.*kill|lsof.*-ti.*\\|.*kill|kill.*\\$\\(lsof|kill.*lsof|fuser.*-k'; then echo 'BLOCKED: lsof+kill / fuser+kill はポートフォワーディングプロセスを巻き込んで devcontainer を殺す。代わりに pkill -f で特定プロセス名を指定して kill すること。' >&2; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE 'git\\s+checkout\\s+--\\s+\\.|git\\s+restore\\s+\\.|git\\s+reset\\s+--hard|git\\s+clean\\s+-[a-z]*f|jj\\s+restore\\s+--(from|to|changes-in)'; then echo 'BLOCKED: 全ファイル対象の revert/reset は他プロセスの変更を巻き込む。特定ファイルを指定するか、ワークスペース (jj workspace add / git worktree add) を作成して作業すること。' >&2; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE 'git\\s+worktree\\s+add'; then if ! echo \"$CLAUDE_TOOL_INPUT\" | grep -qE 'git\\s+worktree\\s+add\\s+\\.claude/worktrees/'; then echo 'BLOCKED: worktree は .claude/worktrees/ 配下に作成すること。例: git worktree add .claude/worktrees/<タスク名> -b <ブランチ名> origin/master。または EnterWorktree ツールを使うこと。' >&2; exit 2; fi; fi"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE 'gh\\s+pr\\s+create'; then \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/require-pr-self-review.sh; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [ -x \"$CLAUDE_PROJECT_DIR/.claude/hooks/project/block-redash-direct-exec.sh\" ]; then \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/project/block-redash-direct-exec.sh; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-config.sh",
+            "statusMessage": "Checking if file is a protected config..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE 'gh\\s+pr\\s+create'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"PR を作成した。続けて必ず次の2つを実行し、指摘があれば直すこと: (1) pr-first-reader-check スキルで、PRタイトル・本文・コミットメッセージ・差分のコメント/識別子に、初見のレビュアーへ通じない語（issue/PR 限定の呼び名・PR外参照・未定義略語・暗黙の前提）が無いか検査。 (2) evergreen-comment チェック（.claude/rules/code-intent-documentation.md）で、差分のコメントが現在のWHYだけか（履歴・WHAT重複・コードに無いものへの言及が無いか）検査。\"}}'; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-lint.sh",
+            "statusMessage": "Running lint on edited file..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-verify.sh",
+            "statusMessage": "Running lint + test verification before completion..."
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
-    "document-skills@anthropic-agent-skills": true,
-    "example-skills@anthropic-agent-skills": true,
-    "agent-sdk-dev@claude-plugins-official": true,
+    "document-skills@anthropic-agent-skills": false,
+    "example-skills@anthropic-agent-skills": false,
+    "agent-sdk-dev@claude-plugins-official": false,
     "code-review@claude-plugins-official": true,
-    "explanatory-output-style@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": false,
     "learning-output-style@claude-plugins-official": true,
-    "plugin-dev@claude-plugins-official": true,
+    "plugin-dev@claude-plugins-official": false,
     "security-guidance@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true,
@@ -28,52 +110,55 @@
     "context7@claude-plugins-official": true,
     "hookify@claude-plugins-official": true,
     "pr-review-toolkit@claude-plugins-official": true,
-    "pyright-lsp@claude-plugins-official": true,
-    "rust-analyzer-lsp@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": false,
+    "rust-analyzer-lsp@claude-plugins-official": false,
     "code-simplifier@claude-plugins-official": true,
-    "ralph-loop@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": false,
     "superpowers@claude-plugins-official": true,
-    "gopls-lsp@claude-plugins-official": true,
+    "gopls-lsp@claude-plugins-official": false,
     "claude-md-management@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true,
-    "playground@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true,
-    "qodo-skills@claude-plugins-official": true,
-    "mintlify@claude-plugins-official": true,
-    "clangd-lsp@claude-plugins-official": true,
-    "csharp-lsp@claude-plugins-official": true,
-    "jdtls-lsp@claude-plugins-official": true,
-    "kotlin-lsp@claude-plugins-official": true,
-    "lua-lsp@claude-plugins-official": true,
-    "php-lsp@claude-plugins-official": true,
-    "ruby-lsp@claude-plugins-official": true,
-    "swift-lsp@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": false,
+    "playground@claude-plugins-official": false,
+    "skill-creator@claude-plugins-official": false,
+    "qodo-skills@claude-plugins-official": false,
+    "mintlify@claude-plugins-official": false,
+    "clangd-lsp@claude-plugins-official": false,
+    "csharp-lsp@claude-plugins-official": false,
+    "jdtls-lsp@claude-plugins-official": false,
+    "kotlin-lsp@claude-plugins-official": false,
+    "lua-lsp@claude-plugins-official": false,
+    "php-lsp@claude-plugins-official": false,
+    "ruby-lsp@claude-plugins-official": false,
+    "swift-lsp@claude-plugins-official": false,
     "playwright@claude-plugins-official": false,
     "serena@claude-plugins-official": false,
-    "claude-api@anthropic-agent-skills": true,
-    "adspirer-ads-agent@claude-plugins-official": true,
-    "legalzoom@claude-plugins-official": true,
-    "data@claude-plugins-official": true,
-    "productivity@knowledge-work-plugins": true,
-    "enterprise-search@knowledge-work-plugins": true,
-    "cowork-plugin-management@knowledge-work-plugins": true,
-    "sales@knowledge-work-plugins": true,
-    "finance@knowledge-work-plugins": true,
-    "legal@knowledge-work-plugins": true,
-    "marketing@knowledge-work-plugins": true,
-    "customer-support@knowledge-work-plugins": true,
-    "product-management@knowledge-work-plugins": true,
-    "engineering@knowledge-work-plugins": true,
-    "human-resources@knowledge-work-plugins": true,
-    "design@knowledge-work-plugins": true,
-    "operations@knowledge-work-plugins": true,
-    "financial-analysis@financial-services-plugins": true,
-    "investment-banking@financial-services-plugins": true,
-    "equity-research@financial-services-plugins": true,
-    "private-equity@financial-services-plugins": true,
-    "wealth-management@financial-services-plugins": true,
-    "lseg@financial-services-plugins": true,
-    "sp-global@financial-services-plugins": true
+    "claude-api@anthropic-agent-skills": false,
+    "legalzoom@claude-plugins-official": false,
+    "data@claude-plugins-official": false,
+    "productivity@knowledge-work-plugins": false,
+    "enterprise-search@knowledge-work-plugins": false,
+    "cowork-plugin-management@knowledge-work-plugins": false,
+    "sales@knowledge-work-plugins": false,
+    "finance@knowledge-work-plugins": false,
+    "legal@knowledge-work-plugins": false,
+    "marketing@knowledge-work-plugins": false,
+    "customer-support@knowledge-work-plugins": false,
+    "product-management@knowledge-work-plugins": false,
+    "engineering@knowledge-work-plugins": false,
+    "human-resources@knowledge-work-plugins": false,
+    "design@knowledge-work-plugins": false,
+    "operations@knowledge-work-plugins": false,
+    "financial-analysis@financial-services-plugins": false,
+    "investment-banking@financial-services-plugins": false,
+    "equity-research@financial-services-plugins": false,
+    "private-equity@financial-services-plugins": false,
+    "wealth-management@financial-services-plugins": false,
+    "lseg@financial-services-plugins": false,
+    "sp-global@financial-services-plugins": false,
+    "sentry@claude-plugins-official": true,
+    "intercom@claude-plugins-official": false,
+    "slack@claude-plugins-official": true,
+    "datadog@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "anthropic-agent-skills": {
@@ -81,12 +166,20 @@
         "source": "github",
         "repo": "anthropics/skills"
       }
+    },
+    "financial-services-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/financial-services-plugins"
+      }
+    },
+    "knowledge-work-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/knowledge-work-plugins"
+      }
     }
   },
   "language": "japanese",
-  "plansDirectory": ".claude/plans",
-  "statusLine": {
-    "type": "command",
-    "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/statusline.sh\""
-  }
+  "plansDirectory": ".claude/plans"
 }

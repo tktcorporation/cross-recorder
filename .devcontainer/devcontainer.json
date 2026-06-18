@@ -29,15 +29,15 @@
     // },
     "ghcr.io/devcontainers/features/aws-cli:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers-extra/features/mise:1": {}
+    "ghcr.io/devcontainers-extra/features/mise:1": {
+      "version": "2026.4.10"
+    }
   },
   "runArgs": ["--env-file", ".devcontainer/.env.devcontainer"],
   "customizations": {
     "vscode": {
       "extensions": [
-        "GitHub.copilot",
         "mhutchie.git-graph",
-        "steoates.autoimport",
         "editorconfig.editorconfig",
         "WakaTime.vscode-wakatime",
         "nemesv.copy-file-name"
@@ -57,10 +57,9 @@
           "**/.pytest_cache/**": true,
           "**/venv/**": true,
           "**/.venv/**": true,
-          // jj workspace（*-ws-* パターン）の監視を除外
-          // Claude Code の並列作業で一時的に作成されるワークスペースが
+          // Claude Code の並列作業で .worktrees/ 内に作成されるワークスペースが
           // VS Code の Git 拡張に検知されてメモリを大量消費するのを防ぐ
-          "**/*-ws-*/**": true
+          "**/.worktrees/**": true
         },
         "search.exclude": {
           "**/node_modules": true,
@@ -71,7 +70,7 @@
           "**/dist": true,
           "**/.next": true,
           "**/coverage": true,
-          "**/*-ws-*": true
+          "**/.worktrees": true
         },
         "git.detectSubmodulesLimit": 0,
         // jj workspace が VS Code の Git 拡張に自動検出されるのを防ぐ
@@ -94,13 +93,14 @@
     // 対象:
     //   .pnpm-store: pnpm のパッケージキャッシュ (named volume)
     //   ~/.local/share/mise: mise のインストール済みツール (named volume)
+    //   ~/.local/share/pnpm: pnpm のツールキャッシュ（oxfmt 等）
     //   ~/.local/state/mise: mise trust の trusted-configs 保存先
     //   ~/.cache/mise: mise のダウンロードキャッシュ
     //   ~/.claude: Claude Code データ全体 (named volume)
     "fix-volume-permissions": [
       "bash",
       "-c",
-      "set -e; sudo mkdir -p ~/.local/state/mise ~/.cache/mise && sudo chown -R $(whoami) .pnpm-store ~/.local/share/mise ~/.local/state/mise ~/.cache/mise ~/.claude"
+      "set -e; sudo mkdir -p ~/.local/state/mise ~/.cache/mise ~/.local/share/pnpm && sudo chown -R $(whoami) .pnpm-store ~/.local/share/mise ~/.local/share/pnpm ~/.local/state/mise ~/.cache/mise ~/.claude"
     ]
   },
   "updateContentCommand": {
@@ -113,8 +113,14 @@
     "trust-mise": ["bash", "-lc", "mise trust"],
     "setup-git-user": ["bash", "-l", ".devcontainer/setup-git-user.sh"],
     // vite-plus (vp) CLI: Vite, Vitest, Oxlint, Oxfmt, Rolldown, tsdown を統合した開発ツールチェーン
-    // CI=true で Node.js 管理の対話プロンプトをスキップ
-    "install-vite-plus": ["bash", "-c", "CI=true curl -fsSL https://vite.plus | bash"]
+    // Node.js のバージョン管理は mise に一任するため vp に shim (node/npm/npx) を作らせない。
+    // VP_NODE_MANAGER=no は CI/devcontainer 自動有効化より優先されるオプトアウト。
+    // CI=true は失敗時にインストールログを標準出力にインライン出力させるため (devcontainer ビルドログで追跡しやすくする)。
+    "install-vite-plus": [
+      "bash",
+      "-c",
+      "VP_NODE_MANAGER=no CI=true curl -fsSL https://vite.plus | bash"
+    ]
   },
   "postCreateCommand": {
     "fix-pnpm-store-permissions": ["bash", "-lc", "sudo chown -R $(whoami) .pnpm-store"],

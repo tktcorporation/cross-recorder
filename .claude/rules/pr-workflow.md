@@ -1,96 +1,29 @@
 # PR ワークフロールール
 
-## プッシュ前の必須チェック（CRITICAL）
+## PR 作成後の CI 監視
 
-**コードを push する前に、以下を必ず順番に実行すること。1つでも漏れたら push 禁止。**
+PR を作成またはプッシュした後は、CI が **全て pass するまで** 監視すること。
+CI が全部通るまでユーザーに「完了」と報告しない。
 
-1. `pnpm --filter ziku run check` で CI 相当の全チェックを通す（format, lint, typecheck, build, test, docs）
-2. changeset ファイルが必要か確認する（機能追加・バグ修正なら必須）
-   - `ls .changeset/*.md` で README.md 以外のファイルがあるか確認
-   - なければ `.changeset/<名前>.md` を作成
-3. 全部通ったことを確認してから `git push`
+### 手順
 
-```bash
-# チェックリスト（コピペ用）
-pnpm --filter ziku run check         # 全チェック一括
-ls .changeset/*.md                    # changeset 確認
-# ↑ 両方 OK なら push
-```
+1. `gh pr checks <PR番号> --watch` で CI の状態を監視する
+2. fail したチェックがあれば、ログを確認して修正を試みる
+   ```bash
+   gh run view <run-id> --log-failed
+   ```
+3. 修正後は再度 push して CI を再ウォッチする
+4. 全チェックが pass するまでこのサイクルを繰り返す
 
-## PR 作成後の CI ウォッチ
+### ポイント
 
-PR を作成した後は、必ず CI が完了するまでウォッチする。
+- CI で実行される lint・test・build 等は手元でも事前に実行できる（`pre-push-verification.md` 参照）
+- テスト失敗時はログから原因を特定し、コード修正 → テスト再実行 → プッシュのサイクルを回す
 
-```bash
-gh pr checks <PR番号> --watch
-```
+## Changeset（該当プロジェクトのみ）
 
-- CI が全て pass したらユーザーに報告する
-- fail したチェックがあれば、ログを確認して修正を試みる
-  ```bash
-  gh run view <run-id> --log-failed
-  ```
-- 修正後は再度 push して CI を再ウォッチする
+changeset を使用しているプロジェクトでは:
 
-## Changeset
-
-機能追加・バグ修正の PR には必ず changeset ファイルを含める。
-コミット・プッシュ前に changeset ファイルが存在するか確認し、なければ作成すること。
-
-```bash
-# .changeset/<変更を端的に表す名前>.md を作成
-# minor: 機能追加、patch: バグ修正
-```
-
-形式:
-
-```markdown
----
-"cross-recorder": minor
----
-
-変更の説明
-```
-
-- CI に `Changeset Check` ジョブがあり、changeset がないと fail する
-- 1 PR に 1 changeset ファイルで十分（複数変更がある場合はまとめてよい）
-- ドキュメントのみの変更やリファクタなど、バージョンに影響しない変更は不要
-# PR ワークフロールール
-
-## PR 作成後の CI ウォッチ
-
-PR を作成した後は、必ず CI が完了するまでウォッチする。
-
-```bash
-gh pr checks <PR番号> --watch
-```
-
-- CI が全て pass したらユーザーに報告する
-- fail したチェックがあれば、ログを確認して修正を試みる
-  ```bash
-  gh run view <run-id> --log-failed
-  ```
-- 修正後は再度 push して CI を再ウォッチする
-
-## Changeset
-
-機能追加・バグ修正の PR には必ず changeset ファイルを含める。
-コミット・プッシュ前に changeset ファイルが存在するか確認し、なければ作成すること。
-
-```bash
-# .changeset/<変更を端的に表す名前>.md を作成
-# minor: 機能追加、patch: バグ修正
-```
-
-形式:
-```markdown
----
-"cross-recorder": minor
----
-
-変更の説明
-```
-
-- CI に `Changeset Check` ジョブがあり、changeset がないと fail する
-- 1 PR に 1 changeset ファイルで十分（複数変更がある場合はまとめてよい）
-- ドキュメントのみの変更やリファクタなど、バージョンに影響しない変更は不要
+- バージョンに影響する変更を含む PR では、コミット前に changeset ファイルの有無を確認し、なければ作成する
+- パッケージ名は `package.json` の `name` フィールドを参照すること
+- ドキュメントのみの変更やリファクタなど、バージョンに影響しない変更では不要

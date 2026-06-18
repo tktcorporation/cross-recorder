@@ -45,3 +45,6 @@ artifacts/
 
 # ziku template sync temp files
 .devenv-temp/
+
+# PR セルフレビュー回数カウンター（ローカル状態。コミットするとゲートが常時満たされ無効化される）
+.claude/.pr-review-count

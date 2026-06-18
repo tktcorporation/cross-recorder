@@ -24,11 +24,10 @@ export default defineConfig({
     "no-explicit-any": "warn",
     "no-non-null-assertion": "warn",
     "no-throw-literal": "error",
-    "no-empty-catch": "error",
+    "no-empty": "error",
     "no-unsafe-finally": "error",
     "no-fallthrough": "error",
     "no-implicit-coercion": "warn",
-    "no-return-await": "warn",
   },
   overrides: [
     // rpc.ts は Electrobun の RPC フレームワーク境界。

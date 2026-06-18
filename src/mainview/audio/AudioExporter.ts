@@ -100,6 +100,8 @@ export function encodeMp3(
   source: PcmSource,
   bitrate: number = EXPORT_MP3_BITRATE,
 ): Uint8Array {
+  // lamejs はモノラル/ステレオのみ対応。mixTracks の出力は最大 2ch のため通常は切り捨て
+  // されないが、3ch 以上が渡された場合は先頭 2ch のみエンコードされる。
   const channels = Math.min(source.numberOfChannels, 2);
   const encoder = new Mp3Encoder(channels, source.sampleRate, bitrate);
 

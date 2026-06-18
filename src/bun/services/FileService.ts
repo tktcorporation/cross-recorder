@@ -290,7 +290,7 @@ const downloadsDir = path.join(os.homedir(), DOWNLOADS_DIR);
  */
 function sanitizeBaseName(name: string): string {
   // eslint-disable-next-line no-control-regex
-  const base = name.replace(/[/\\]/g, "_").replace(/[<>:"|?* -]/g, "");
+  const base = name.replace(/[/\\]/g, "_").replace(/[<>:"|?*\u0000-\u001f]/g, "");
   return base.trim() === "" ? "export" : base;
 }
 

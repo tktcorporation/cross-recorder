@@ -1,6 +1,7 @@
 import type { RPCSchema } from "electrobun/bun";
 import type {
   AudioDevice,
+  ExportFormat,
   RecordingConfig,
   RecordingMetadata,
   RecordingState,
@@ -74,6 +75,14 @@ export type CrossRecorderRPC = {
       getPlaybackData: {
         params: { filePath: string };
         response: { data: string; mimeType: string };
+      };
+      /**
+       * ミックスダウン済みの音声 (base64) を ~/Downloads に書き出す。
+       * 複数トラックの結合・エンコードはフロントエンド (Web Audio + lamejs) で行う。
+       */
+      exportRecording: {
+        params: { fileName: string; format: ExportFormat; data: string };
+        response: { filePath: string };
       };
       checkForUpdate: {
         params: Record<string, never>;

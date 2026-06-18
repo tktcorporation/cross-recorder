@@ -4,8 +4,10 @@ import { useRecordingStore } from "../../stores/recordingStore.js";
 import { useWaveformData } from "../../hooks/useWaveformData.js";
 import { WaveformTrack } from "../WaveformTrack.js";
 import { PlaybackController } from "../../audio/PlaybackController.js";
+import { bytesToBase64, exportTracks } from "../../audio/AudioExporter.js";
 import { Button } from "../ui/button.js";
 import type {
+  ExportFormat,
   RecordingMetadata,
   TrackInfo,
   TranscriptionResult,
@@ -79,6 +81,14 @@ export function ExpandedPlayer({ recording }: Props) {
     recording.transcription ?? null,
   );
   const [isTranscribing, setIsTranscribing] = useState(false);
+
+  // エクスポート関連の状態。実行中はフォーマットを保持し、二重実行を防ぐ。
+  const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(
+    null,
+  );
+  const [exportResult, setExportResult] = useState<
+    { ok: true; filePath: string } | { ok: false; error: string } | null
+  >(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const controllerRef = useRef<PlaybackController | null>(null);
@@ -272,6 +282,29 @@ export function ExpandedPlayer({ recording }: Props) {
     }
   }, [recording.id, request, tracks]);
 
+  const handleExport = useCallback(
+    async (format: ExportFormat) => {
+      if (audioBuffers.length === 0 || exportingFormat !== null) return;
+
+      setExportingFormat(format);
+      setExportResult(null);
+      try {
+        const bytes = await exportTracks(audioBuffers, format);
+        const { filePath } = await request.exportRecording({
+          fileName: recording.fileName,
+          format,
+          data: bytesToBase64(bytes),
+        });
+        setExportResult({ ok: true, filePath });
+      } catch (err) {
+        setExportResult({ ok: false, error: String(err) });
+      } finally {
+        setExportingFormat(null);
+      }
+    },
+    [audioBuffers, exportingFormat, recording.fileName, request],
+  );
+
   const handleOpenFolder = async () => {
     await request.openFileLocation({ filePath: recording.filePath });
   };
@@ -338,6 +371,24 @@ export function ExpandedPlayer({ recording }: Props) {
           <Button
             variant="ghost"
             size="sm"
+            onClick={() => handleExport("wav")}
+            disabled={isLoading || exportingFormat !== null}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {exportingFormat === "wav" ? "Exporting..." : "Export WAV"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleExport("mp3")}
+            disabled={isLoading || exportingFormat !== null}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {exportingFormat === "mp3" ? "Exporting..." : "Export MP3"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleOpenFolder}
             className="text-xs text-muted-foreground hover:text-foreground"
           >
@@ -353,6 +404,18 @@ export function ExpandedPlayer({ recording }: Props) {
           </Button>
         </div>
       </div>
+
+      {/* エクスポート結果 */}
+      {exportResult?.ok && (
+        <p className="text-xs text-muted-foreground">
+          Exported to {exportResult.filePath}
+        </p>
+      )}
+      {exportResult && !exportResult.ok && (
+        <p className="text-xs text-destructive">
+          Export failed: {exportResult.error}
+        </p>
+      )}
 
       {/* 文字起こし結果 */}
       {transcription && transcription.status === "done" && transcription.text && (

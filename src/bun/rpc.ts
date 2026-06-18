@@ -2,6 +2,7 @@ import { BrowserView } from "electrobun/bun";
 import { Effect } from "effect";
 import type { CrossRecorderRPC } from "../shared/rpc-schema.js";
 import type {
+  ExportFormat,
   RecordingConfig,
   TrackKind,
   TranscriptionConfig,
@@ -129,6 +130,17 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
 
       getPlaybackData: async (params: { filePath: string }) => {
         return Effect.runPromise(FileService.getPlaybackData(params.filePath));
+      },
+
+      exportRecording: async (params: {
+        fileName: string;
+        format: ExportFormat;
+        data: string;
+      }) => {
+        const buffer = Buffer.from(params.data, "base64");
+        return Effect.runPromise(
+          FileService.saveExport(params.fileName, params.format, buffer),
+        );
       },
 
       checkForUpdate: async () => {

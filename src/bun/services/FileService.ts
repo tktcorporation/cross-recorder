@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import {
   APP_DATA_DIR,
+  DOWNLOADS_DIR,
   RECORDINGS_DIR,
   WAV_HEADER_SIZE,
 } from "../../shared/constants.js";
@@ -13,6 +14,7 @@ import {
   ShellCommandError,
 } from "../../shared/errors.js";
 import type {
+  ExportFormat,
   RecordingConfig,
   RecordingMetadata,
   TrackKind,
@@ -274,6 +276,64 @@ export function openFileLocation(filePath: string) {
     catch: (error) =>
       new ShellCommandError({
         command: "openFileLocation",
+        reason: String(error),
+      }),
+  });
+}
+
+const downloadsDir = path.join(os.homedir(), DOWNLOADS_DIR);
+
+/**
+ * ファイル名として安全な文字列に整える。
+ * パス区切りと OS で禁止される文字、制御文字のみ除去し、
+ * 録音名のタイムスタンプに含まれるハイフン・アンダースコアは保持する。
+ */
+function sanitizeBaseName(name: string): string {
+  // eslint-disable-next-line no-control-regex
+  const base = name.replace(/[/\\]/g, "_").replace(/[<>:"|?* -]/g, "");
+  return base.trim() === "" ? "export" : base;
+}
+
+/** 既存ファイルと衝突する場合に " (1)", " (2)" を付与して未使用パスを返す。 */
+function resolveUniquePath(dir: string, baseName: string, ext: string): string {
+  let candidate = path.join(dir, `${baseName}.${ext}`);
+  let counter = 1;
+  while (fs.existsSync(candidate)) {
+    candidate = path.join(dir, `${baseName} (${counter}).${ext}`);
+    counter++;
+  }
+  return candidate;
+}
+
+/**
+ * ミックスダウン済みの音声を ~/Downloads に書き出す。
+ *
+ * 背景: 録音は複数トラック (mic.wav / system.wav) に分かれて保存されるが、
+ * エクスポートはフロントエンドで 1 本にミックス・エンコードしたバイト列を
+ * base64 で受け取り、ユーザーが扱いやすい Downloads 配下に保存する。
+ *
+ * 呼び出し元: rpc.ts の exportRecording ハンドラ。
+ */
+export function saveExport(
+  baseName: string,
+  format: ExportFormat,
+  buffer: Buffer,
+) {
+  return Effect.tryPromise({
+    try: async () => {
+      fs.mkdirSync(downloadsDir, { recursive: true });
+      const ext = format === "mp3" ? "mp3" : "wav";
+      const filePath = resolveUniquePath(
+        downloadsDir,
+        sanitizeBaseName(baseName),
+        ext,
+      );
+      fs.writeFileSync(filePath, buffer);
+      return { filePath };
+    },
+    catch: (error) =>
+      new FileWriteError({
+        path: downloadsDir,
         reason: String(error),
       }),
   });

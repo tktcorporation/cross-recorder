@@ -14,6 +14,15 @@ export const WAV_HEADER_SIZE = 44;
 /** 録音ファイルの保存ディレクトリ名 */
 export const RECORDINGS_DIR = "recordings";
 
+/** エクスポート先ディレクトリ名（ユーザーのホーム直下） */
+export const DOWNLOADS_DIR = "Downloads";
+
+/**
+ * エクスポート時の MP3 ビットレート (kbps)。
+ * 192 は音声録音用途で品質とファイルサイズのバランスが取れる値。
+ */
+export const EXPORT_MP3_BITRATE = 192;
+
 /** 設定ファイル名 */
 export const CONFIG_FILE = "config.json";
 

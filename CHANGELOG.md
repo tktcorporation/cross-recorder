@@ -1,5 +1,17 @@
 # cross-recorder
 
+## 0.12.0
+
+### Minor Changes
+
+- [#56](https://github.com/tktcorporation/cross-recorder/pull/56) [`17fc813`](https://github.com/tktcorporation/cross-recorder/commit/17fc813ad99ff88fbde0a6df0f9b6c4753aa79d3) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 録音の音声エクスポート機能を追加。複数トラック（mic / system）を 1 本にミックスダウンし、WAV（無圧縮）または MP3（192kbps）で ~/Downloads に書き出せるようにした。
+
+### Patch Changes
+
+- [#55](https://github.com/tktcorporation/cross-recorder/pull/55) [`7c2b3dc`](https://github.com/tktcorporation/cross-recorder/commit/7c2b3dc7434cbf11477fefa0d3468eaba694c98c) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 依存パッケージを更新。マイナー/パッチ更新（electrobun, effect, framer-motion, oxlint, vitest, zustand, radix-ui 等）に加え、concurrently・@vitejs/plugin-react・vite・typescript をメジャー更新。TypeScript 6 / oxlint 1.70 の仕様変更に追従（deprecated な tsconfig `baseUrl` の削除、CSS side-effect import の型宣言追加、廃止された lint ルールの削除・置き換え）。
+
+- [#50](https://github.com/tktcorporation/cross-recorder/pull/50) [`7a26b7c`](https://github.com/tktcorporation/cross-recorder/commit/7a26b7cd215d9b619bdbaad5e0ae5bacf371ddc6) Thanks [@tktcorporation](https://github.com/tktcorporation)! - ネイティブ文字起こしバイナリ未ビルド時に Whisper API へ自動フォールバックするよう修正。サイドバーの横幅崩れを修正。
+
 ## 0.11.2
 
 ### Patch Changes

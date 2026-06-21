@@ -18,19 +18,24 @@ type RecordButtonProps = {
 
 export function RecordButton({ state, disabled, onClick }: RecordButtonProps) {
   const isIdle = state === "idle";
+  const isRecording = state === "recording";
   const isStopping = state === "stopping";
 
   return (
     <motion.button
       onClick={onClick}
       disabled={disabled || isStopping}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
+      whileHover={{ scale: disabled ? 1 : 1.04 }}
+      whileTap={{ scale: disabled ? 1 : 0.94 }}
       className={cn(
-        "relative z-10 flex h-20 w-20 items-center justify-center rounded-full transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        isStopping ? "bg-muted" : "bg-recording",
-        (disabled || isStopping) && "cursor-not-allowed opacity-60",
+        "relative z-10 flex h-[88px] w-[88px] items-center justify-center rounded-full transition-shadow duration-300",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background",
+        isStopping
+          ? "bg-elevated ring-1 ring-border"
+          : "bg-recording ring-1 ring-recording/40",
+        isRecording && "shadow-glow-recording",
+        !isRecording && !isStopping && "shadow-[0_8px_24px_-6px_hsl(var(--recording)/0.5)]",
+        (disabled || isStopping) && "cursor-not-allowed opacity-60 shadow-none",
       )}
       aria-label={isIdle ? "Start recording" : "Stop recording"}
     >
@@ -45,7 +50,7 @@ export function RecordButton({ state, disabled, onClick }: RecordButtonProps) {
           layoutId="record-icon"
           className={cn(
             "bg-recording-foreground",
-            isIdle ? "h-6 w-6 rounded-full" : "h-6 w-6 rounded-sm",
+            isIdle ? "h-7 w-7 rounded-full" : "h-6 w-6 rounded-[5px]",
           )}
           transition={{ type: "spring", stiffness: 500, damping: 30 }}
         />

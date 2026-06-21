@@ -5,6 +5,7 @@ import { useWaveformData } from "../../hooks/useWaveformData.js";
 import { WaveformTrack } from "../WaveformTrack.js";
 import { PlaybackController } from "../../audio/PlaybackController.js";
 import { Button } from "../ui/button.js";
+import { PlayIcon, PauseIcon, ArrowRightIcon } from "../ui/icons.js";
 import type { RecordingMetadata, TrackInfo } from "@shared/types.js";
 
 /**
@@ -239,7 +240,7 @@ export function PostRecordingPlayer({ recording, onDismiss }: Props) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 8 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4"
+      className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-card"
     >
       {/* 波形表示 */}
       {isLoading ? (
@@ -272,12 +273,17 @@ export function PostRecordingPlayer({ recording, onDismiss }: Props) {
           size="icon"
           onClick={handlePlayPause}
           disabled={isLoading}
-          className="h-8 w-8 shrink-0 rounded-full bg-playback text-playback-foreground hover:bg-playback/90"
+          className="h-9 w-9 shrink-0 rounded-full bg-playback text-playback-foreground shadow-glow-playback hover:bg-playback/90"
+          aria-label={isPlaying ? "Pause" : "Play"}
         >
-          {isLoading ? "..." : isPlaying ? "\u23F8" : "\u25B6"}
+          {isPlaying ? (
+            <PauseIcon className="h-4 w-4" />
+          ) : (
+            <PlayIcon className="h-4 w-4 translate-x-[1px]" />
+          )}
         </Button>
 
-        <span className="font-mono text-xs text-muted-foreground">
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
           {formatTime(currentTime)} / {formatTime(duration)}
         </span>
 
@@ -287,9 +293,10 @@ export function PostRecordingPlayer({ recording, onDismiss }: Props) {
           variant="ghost"
           size="sm"
           onClick={onDismiss}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="text-xs"
         >
-          View in Library &rarr;
+          View in Library
+          <ArrowRightIcon className="h-3.5 w-3.5" />
         </Button>
       </div>
     </motion.div>

@@ -6,6 +6,14 @@ import { WaveformTrack } from "../WaveformTrack.js";
 import { PlaybackController } from "../../audio/PlaybackController.js";
 import { bytesToBase64, exportTracks } from "../../audio/AudioExporter.js";
 import { Button } from "../ui/button.js";
+import {
+  PlayIcon,
+  PauseIcon,
+  SparkleIcon,
+  DownloadIcon,
+  FolderIcon,
+  TrashIcon,
+} from "../ui/icons.js";
 import type {
   ExportFormat,
   RecordingMetadata,
@@ -347,25 +355,31 @@ export function ExpandedPlayer({ recording }: Props) {
             size="icon"
             onClick={handlePlayPause}
             disabled={isLoading}
-            className="h-8 w-8 shrink-0 rounded-full bg-playback text-playback-foreground hover:bg-playback/90"
+            className="h-9 w-9 shrink-0 rounded-full bg-playback text-playback-foreground shadow-glow-playback hover:bg-playback/90"
+            aria-label={isPlaying ? "Pause" : "Play"}
           >
-            {isLoading ? "..." : isPlaying ? "\u23F8" : "\u25B6"}
+            {isPlaying ? (
+              <PauseIcon className="h-4 w-4" />
+            ) : (
+              <PlayIcon className="h-4 w-4 translate-x-[1px]" />
+            )}
           </Button>
 
-          <span className="font-mono text-xs text-muted-foreground">
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">
             {formatTime(currentTime)} / {formatTime(duration)}
           </span>
         </div>
 
         {/* アクションボタン — 折り返し可能にして幅が狭くても潰れないようにする */}
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1 border-t border-border/60 pt-2">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleTranscribe}
             disabled={isLoading || isTranscribing || tracks.length === 0}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="px-2 text-xs"
           >
+            <SparkleIcon className="h-3.5 w-3.5" />
             {isTranscribing ? "Transcribing..." : "Transcribe"}
           </Button>
           <Button
@@ -373,33 +387,37 @@ export function ExpandedPlayer({ recording }: Props) {
             size="sm"
             onClick={() => handleExport("wav")}
             disabled={isLoading || exportingFormat !== null}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="px-2 text-xs"
           >
-            {exportingFormat === "wav" ? "Exporting..." : "Export WAV"}
+            <DownloadIcon className="h-3.5 w-3.5" />
+            {exportingFormat === "wav" ? "Exporting..." : "WAV"}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => handleExport("mp3")}
             disabled={isLoading || exportingFormat !== null}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="px-2 text-xs"
           >
-            {exportingFormat === "mp3" ? "Exporting..." : "Export MP3"}
+            <DownloadIcon className="h-3.5 w-3.5" />
+            {exportingFormat === "mp3" ? "Exporting..." : "MP3"}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleOpenFolder}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="px-2 text-xs"
           >
-            Open folder
+            <FolderIcon className="h-3.5 w-3.5" />
+            Folder
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleDelete}
-            className="text-xs text-muted-foreground hover:text-destructive"
+            className="px-2 text-xs hover:bg-destructive/10 hover:text-destructive"
           >
+            <TrashIcon className="h-3.5 w-3.5" />
             Delete
           </Button>
         </div>

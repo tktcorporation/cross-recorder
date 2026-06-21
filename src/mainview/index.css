@@ -4,38 +4,59 @@
 
 @layer base {
   :root {
-    --background: 222 47% 5%;
-    --foreground: 210 40% 98%;
-    --card: 217 33% 10%;
-    --card-foreground: 210 40% 98%;
+    /* ベース面と段階的な elevation。録音という「集中させたい」用途に合わせ、
+       彩度を抑えた深いスレートブルーで奥行きを作る。 */
+    --background: 225 32% 6%;
+    --surface: 222 26% 9%;
+    --foreground: 210 36% 97%;
+    --card: 221 24% 11%;
+    --card-foreground: 210 36% 97%;
+    --elevated: 220 21% 16%;
     --primary: 210 40% 98%;
-    --primary-foreground: 222 47% 5%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 55%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 84% 60%;
+    --primary-foreground: 222 47% 6%;
+    --secondary: 220 21% 15%;
+    --secondary-foreground: 210 36% 97%;
+    --muted: 220 21% 15%;
+    --muted-foreground: 216 15% 62%;
+    --accent: 220 21% 16%;
+    --accent-foreground: 210 36% 97%;
+    --destructive: 0 72% 56%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 212 92% 45%;
-    --radius: 0.75rem;
-    --recording: 0 84% 60%;
+    --border: 220 18% 18%;
+    --input: 220 18% 18%;
+    --ring: 212 90% 56%;
+    --radius: 0.875rem;
+    /* 録音=赤 / 再生=青 のアクセント。ネオンになりすぎないよう彩度を一段落とす。 */
+    --recording: 0 78% 60%;
     --recording-foreground: 210 40% 98%;
-    --playback: 217 91% 60%;
-    --playback-foreground: 210 40% 98%;
+    --playback: 213 90% 62%;
+    --playback-foreground: 222 47% 6%;
+
+    --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI",
+      "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
+    --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", "Roboto Mono",
+      "Menlo", monospace;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
     -webkit-app-region: drag;
   }
 
   button,
   select,
-  input {
+  input,
+  a,
+  [role="slider"],
+  [role="switch"] {
     -webkit-app-region: no-drag;
+  }
+
+  ::selection {
+    background-color: hsl(var(--playback) / 0.32);
+    color: hsl(var(--foreground));
   }
 }

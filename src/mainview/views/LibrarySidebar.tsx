@@ -6,6 +6,8 @@ import { ScrollArea } from "../components/ui/scroll-area.js";
 import { RecordingCard } from "../components/library/RecordingCard.js";
 import { Button } from "../components/ui/button.js";
 import { SettingsPanel } from "../components/settings/SettingsPanel.js";
+import { SettingsIcon, MicOffIcon } from "../components/ui/icons.js";
+import { cn } from "@/lib/utils.js";
 
 /**
  * 録音一覧を表示するサイドバー。画面右側に常時表示される。
@@ -39,42 +41,32 @@ export function LibrarySidebar() {
   }, []);
 
   return (
-    <aside className="flex w-80 min-w-[20rem] shrink-0 flex-col overflow-hidden border-r border-border bg-card">
+    <aside className="flex w-80 min-w-[20rem] shrink-0 flex-col overflow-hidden border-r border-border bg-surface">
       {/* ヘッダー */}
-      <div className="flex items-center justify-between px-4 py-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Recordings
-        </h2>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-3.5">
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground/80">
+            Library
+          </h2>
           {recordings.length > 0 && (
-            <span className="text-xs tabular-nums text-muted-foreground">
+            <span className="rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
               {recordings.length}
             </span>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowSettings((v) => !v)}
-            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-            title="Settings"
-          >
-            {/* Gear icon (SVG) */}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-          </Button>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowSettings((v) => !v)}
+          className={cn(
+            "h-7 w-7 p-0",
+            showSettings && "bg-elevated text-foreground",
+          )}
+          title="Settings"
+          aria-pressed={showSettings}
+        >
+          <SettingsIcon className="h-[15px] w-[15px]" />
+        </Button>
       </div>
 
       {/* 設定パネル */}
@@ -84,8 +76,8 @@ export function LibrarySidebar() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="overflow-hidden border-b border-border"
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="overflow-hidden border-y border-border bg-card/40"
           >
             <div className="px-3 py-3">
               <SettingsPanel onClose={() => setShowSettings(false)} />
@@ -96,17 +88,23 @@ export function LibrarySidebar() {
 
       {/* コンテンツ */}
       {recordings.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4">
-          <p className="text-center text-xs text-muted-foreground">
-            No recordings yet
-          </p>
-          <p className="text-center text-[11px] text-muted-foreground/60">
-            Start recording to see your files here
-          </p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card text-muted-foreground/70">
+            <MicOffIcon className="h-5 w-5" />
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-center text-sm font-medium text-foreground/80">
+              No recordings yet
+            </p>
+            <p className="max-w-[14rem] text-center text-xs leading-relaxed text-muted-foreground">
+              Hit the record button to capture your first session — it&apos;ll
+              show up here.
+            </p>
+          </div>
         </div>
       ) : (
         <ScrollArea className="flex-1">
-          <div className="flex flex-col gap-2 px-3 pb-3">
+          <div className="flex flex-col gap-2 px-3 py-3">
             <AnimatePresence initial={false}>
               {recordings.map((recording) => (
                 <motion.div

@@ -59,15 +59,15 @@ export function SettingsPanel({ onClose }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Transcription Settings
+      <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground/80">
+        Transcription
       </h3>
 
       {/* ネイティブ文字起こし切り替え（macOS のみ表示） */}
       {nativeAvailable && (
-        <div className="flex items-center justify-between rounded-md border border-border bg-card/50 px-3 py-2">
+        <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2.5">
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-medium text-card-foreground">
+            <span className="text-xs font-medium text-foreground">
               Native (macOS)
             </span>
             <span className="text-[11px] text-muted-foreground">
@@ -95,7 +95,7 @@ export function SettingsPanel({ onClose }: Props) {
                 setConfig((c) => ({ ...c, apiKey: e.target.value }))
               }
               placeholder="sk-..."
-              className="rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+              className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs text-foreground transition-colors placeholder:text-muted-foreground/50 hover:border-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
 
@@ -107,7 +107,7 @@ export function SettingsPanel({ onClose }: Props) {
               onChange={(e) =>
                 setConfig((c) => ({ ...c, apiBaseUrl: e.target.value }))
               }
-              className="rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+              className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs text-foreground transition-colors placeholder:text-muted-foreground/50 hover:border-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
 
@@ -119,7 +119,7 @@ export function SettingsPanel({ onClose }: Props) {
               onChange={(e) =>
                 setConfig((c) => ({ ...c, model: e.target.value }))
               }
-              className="rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+              className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs text-foreground transition-colors placeholder:text-muted-foreground/50 hover:border-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
         </>

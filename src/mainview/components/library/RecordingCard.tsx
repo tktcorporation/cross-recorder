@@ -81,13 +81,15 @@ export function RecordingCard({ recording, isExpanded, onToggleExpand }: Props) 
     <motion.div layout transition={{ type: "spring", stiffness: 300, damping: 30 }}>
       <Card
         className={cn(
-          "overflow-hidden transition-colors",
-          isExpanded && "border-playback/30",
+          "overflow-hidden transition-all duration-200",
+          isExpanded
+            ? "border-playback/40 shadow-card-hover"
+            : "hover:-translate-y-px hover:border-elevated hover:shadow-card-hover",
         )}
       >
         {/* クリック可能なヘッダー部分 */}
         <CardHeader
-          className="cursor-pointer select-none p-4 transition-colors hover:bg-accent/50"
+          className="cursor-pointer select-none p-3 transition-colors hover:bg-elevated/40"
           onClick={onToggleExpand}
         >
           <div className="flex items-center gap-3">

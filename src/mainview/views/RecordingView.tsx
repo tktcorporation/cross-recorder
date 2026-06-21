@@ -8,6 +8,8 @@ import { RecordButton } from "../components/recording/RecordButton.js";
 import { AudioSourceControls } from "../components/recording/AudioSourceControls.js";
 import { RecordingWaveform } from "../components/recording/RecordingWaveform.js";
 import { PostRecordingPlayer } from "../components/recording/PostRecordingPlayer.js";
+import { cn } from "@/lib/utils.js";
+import { formatClock } from "@/lib/format.js";
 import type { RecordingMetadata } from "@shared/types.js";
 
 /**
@@ -15,16 +17,6 @@ import type { RecordingMetadata } from "@shared/types.js";
  * RecordButton + PulseRings を中央に大きく配置し、
  * 録音中は横スクロール波形、停止後は PostRecordingPlayer を表示する。
  */
-
-function formatTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return [hours, minutes, seconds]
-    .map((n) => String(n).padStart(2, "0"))
-    .join(":");
-}
 
 export function RecordingView() {
   const { recordingState, startRecording, stopRecording } = useRecording();
@@ -75,14 +67,29 @@ export function RecordingView() {
     setLastRecording(null);
   };
 
+  const statusLabel = isRecording
+    ? "Recording"
+    : isIdle && noSourceSelected
+      ? "Select a source"
+      : isIdle && lastRecording
+        ? "Recorded"
+        : isIdle
+          ? "Ready"
+          : "Finishing";
+
   return (
-    <div className="flex h-full flex-col">
-      {/* 中央コンテンツ — やや上寄りに配置 */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-5 px-8 pb-16">
+    <div
+      className={cn(
+        "flex h-full flex-col transition-[background] duration-700",
+        isRecording ? "bg-stage-live" : "bg-stage-idle",
+      )}
+    >
+      {/* ステージ — 録音ボタンを中央に据える */}
+      <div className="flex flex-1 flex-col items-center justify-center gap-7 px-8">
         {/* RecordButton + PulseRings */}
         <div
           className="relative flex items-center justify-center"
-          style={{ width: 160, height: 160 }}
+          style={{ width: 176, height: 176 }}
         >
           <PulseRings
             isRecording={isRecording}
@@ -96,17 +103,27 @@ export function RecordingView() {
           />
         </div>
 
-        {/* タイマー */}
-        <p
-          className="font-mono text-3xl tabular-nums tracking-wider text-foreground"
-          aria-live="polite"
-          aria-atomic
-        >
-          {formatTime(elapsedMs)}
-        </p>
+        {/* 状態ラベル + ヒーロータイマー */}
+        <div className="flex flex-col items-center gap-1.5">
+          <span
+            className={cn(
+              "text-[11px] font-semibold uppercase tracking-[0.2em] transition-colors",
+              isRecording ? "text-recording" : "text-muted-foreground",
+            )}
+          >
+            {statusLabel}
+          </span>
+          <p
+            className="font-mono text-[2.75rem] font-light leading-none tabular-nums tracking-tight text-foreground"
+            aria-live="polite"
+            aria-atomic
+          >
+            {formatClock(elapsedMs)}
+          </p>
+        </div>
 
         {/* 波形 / PostRecordingPlayer */}
-        <div className="w-full max-w-md">
+        <div className="min-h-[1px] w-full max-w-md">
           <AnimatePresence mode="wait">
             {isRecording ? (
               <motion.div
@@ -132,7 +149,7 @@ export function RecordingView() {
           </AnimatePresence>
         </div>
 
-        {/* エラー */}
+        {/* エラー / 状態メッセージ */}
         <AnimatePresence>
           {recordingError && (
             <motion.p
@@ -140,7 +157,7 @@ export function RecordingView() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.2 }}
-              className="max-w-sm text-center text-sm text-destructive"
+              className="max-w-sm rounded-md border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-center text-xs text-destructive"
               role="alert"
             >
               {recordingError}
@@ -149,19 +166,21 @@ export function RecordingView() {
         </AnimatePresence>
 
         {sessionState.type === "acquiring" && (
-          <p className="text-sm text-muted-foreground">
-            Acquiring audio devices...
+          <p className="text-xs text-muted-foreground">
+            Acquiring audio devices…
           </p>
         )}
 
         {sessionState.type === "degraded" && (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Recording with {sessionState.activeTracks.join(" + ")} only
           </p>
         )}
+      </div>
 
-        {/* ソースコントロール — 録音ボタン近くに配置 */}
-        <div className="w-full max-w-xs">
+      {/* 下部ドック — ソースコントロール */}
+      <div className="shrink-0 px-6 pb-6">
+        <div className="mx-auto w-full max-w-sm">
           <AudioSourceControls disabled={!isIdle} />
         </div>
       </div>

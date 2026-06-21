@@ -69,10 +69,6 @@ export default {
           "radial-gradient(120% 90% at 50% 38%, hsl(0 60% 16% / 0.55) 0%, hsl(var(--background)) 60%)",
       },
       keyframes: {
-        breathe: {
-          "0%, 100%": { opacity: "0.55", transform: "scale(1)" },
-          "50%": { opacity: "0.9", transform: "scale(1.08)" },
-        },
         "fade-in": {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
@@ -83,7 +79,6 @@ export default {
         },
       },
       animation: {
-        breathe: "breathe 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "fade-in": "fade-in 0.25s ease-out",
         "live-dot": "live-dot 1.4s ease-in-out infinite",
       },

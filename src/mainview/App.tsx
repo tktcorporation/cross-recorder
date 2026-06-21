@@ -5,6 +5,7 @@ import {
   useRecordingStore,
   selectRecordingState,
 } from "./stores/recordingStore.js";
+import { formatClock } from "./lib/format.js";
 
 /**
  * メインレイアウト: 左に録音エリア、右にライブラリサイドバーを常時表示。
@@ -45,15 +46,6 @@ function BrandMark() {
       <span className="h-2.5 w-2.5 rounded-full bg-recording shadow-[0_0_8px_hsl(var(--recording))]" />
     </div>
   );
-}
-
-/** ミリ秒 → "HH:MM:SS" */
-function formatClock(ms: number): string {
-  const total = Math.floor(ms / 1000);
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  return [h, m, s].map((n) => String(n).padStart(2, "0")).join(":");
 }
 
 /** 録音中だけタイトルバー右側に表示する LIVE インジケータ */

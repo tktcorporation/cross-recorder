@@ -55,35 +55,8 @@
     -webkit-app-region: no-drag;
   }
 
-  /* タイマー等の数字をモノスペース幅で揃える */
-  .tabular-nums {
-    font-feature-settings: "tnum";
-    font-variant-numeric: tabular-nums;
-  }
-
   ::selection {
     background-color: hsl(var(--playback) / 0.32);
     color: hsl(var(--foreground));
-  }
-}
-
-@layer utilities {
-  /* サイドバーのスクロールバー。控えめに、ホバーで存在感を出す。 */
-  .scrollbar-subtle {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--border)) transparent;
-  }
-  .scrollbar-subtle::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  .scrollbar-subtle::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--border));
-    border-radius: 9999px;
-    border: 2px solid transparent;
-    background-clip: content-box;
-  }
-  .scrollbar-subtle::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--elevated));
   }
 }

@@ -9,6 +9,7 @@ import { AudioSourceControls } from "../components/recording/AudioSourceControls
 import { RecordingWaveform } from "../components/recording/RecordingWaveform.js";
 import { PostRecordingPlayer } from "../components/recording/PostRecordingPlayer.js";
 import { cn } from "@/lib/utils.js";
+import { formatClock } from "@/lib/format.js";
 import type { RecordingMetadata } from "@shared/types.js";
 
 /**
@@ -16,16 +17,6 @@ import type { RecordingMetadata } from "@shared/types.js";
  * RecordButton + PulseRings を中央に大きく配置し、
  * 録音中は横スクロール波形、停止後は PostRecordingPlayer を表示する。
  */
-
-function formatTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return [hours, minutes, seconds]
-    .map((n) => String(n).padStart(2, "0"))
-    .join(":");
-}
 
 export function RecordingView() {
   const { recordingState, startRecording, stopRecording } = useRecording();
@@ -127,7 +118,7 @@ export function RecordingView() {
             aria-live="polite"
             aria-atomic
           >
-            {formatTime(elapsedMs)}
+            {formatClock(elapsedMs)}
           </p>
         </div>
 

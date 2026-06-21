@@ -1,5 +1,11 @@
 # cross-recorder
 
+## 0.13.0
+
+### Minor Changes
+
+- [#59](https://github.com/tktcorporation/cross-recorder/pull/59) [`9591d15`](https://github.com/tktcorporation/cross-recorder/commit/9591d15ad25ae5939df60a8486c98de7824cb67d) Thanks [@tktcorporation](https://github.com/tktcorporation)! - UI をスタジオ風のダークテーマに刷新。elevation を持つカラートークン体系、統一されたアイコンセット、録音中にグローする録音ボタン、状態ラベル付きのヒーロータイマー、接地した音声ソースドック、タイトルバーの LIVE インジケータ、ライブラリの空状態を改善した。
+
 ## 0.12.0
 
 ### Minor Changes

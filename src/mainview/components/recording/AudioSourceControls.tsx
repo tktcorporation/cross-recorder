@@ -1,5 +1,5 @@
 import { Switch } from "../ui/switch.js";
-import { MicIcon, SpeakerIcon } from "../ui/icons.js";
+import { ChevronDownIcon, MicIcon, SpeakerIcon } from "../ui/icons.js";
 import { cn } from "@/lib/utils.js";
 import { useAudioDevices } from "../../hooks/useAudioDevices.js";
 import { useRecordingStore } from "../../stores/recordingStore.js";
@@ -65,21 +65,30 @@ export function AudioSourceControls({ disabled }: AudioSourceControlsProps) {
 
         {/* マイクデバイスセレクタ — マイク有効時のみ表示 */}
         {micEnabled && (
-          <select
-            value={selectedMicId ?? ""}
-            onChange={(e) => setSelectedMicId(e.target.value || null)}
-            disabled={disabled}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground transition-colors hover:border-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {devices.length === 0 && (
-              <option value="">No devices found</option>
-            )}
-            {devices.map((device) => (
-              <option key={device.deviceId} value={device.deviceId}>
-                {device.label || `Microphone (${device.deviceId.slice(0, 8)})`}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={selectedMicId ?? ""}
+              onChange={(e) => setSelectedMicId(e.target.value || null)}
+              disabled={disabled}
+              className="w-full appearance-none rounded-lg border border-border bg-background py-2 pl-3 pr-8 text-xs text-foreground transition-colors hover:border-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {devices.length === 0 && (
+                <option value="">No devices found</option>
+              )}
+              {devices.map((device) => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label ||
+                    `Microphone (${device.deviceId.slice(0, 8)})`}
+                </option>
+              ))}
+            </select>
+            <ChevronDownIcon
+              className={cn(
+                "pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground transition-opacity",
+                disabled && "opacity-50",
+              )}
+            />
+          </div>
         )}
       </div>
 

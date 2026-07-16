@@ -2,6 +2,13 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Card, CardHeader, CardContent } from "../ui/card.js";
 import { Badge } from "../ui/badge.js";
 import { cn } from "@/lib/utils.js";
+import {
+  channelsLabel,
+  formatDurationMs,
+  formatFileSize,
+  formatRecordedAt,
+  trackKindLabel,
+} from "@/lib/format.js";
 import { ExpandedPlayer } from "./ExpandedPlayer.js";
 import type { RecordingMetadata } from "@shared/types.js";
 
@@ -19,40 +26,6 @@ type Props = {
   isExpanded: boolean;
   onToggleExpand: () => void;
 };
-
-/** ミリ秒 → "M:SS" */
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-/** バイト → "X.X MB" or "X.X KB" */
-function formatFileSize(bytes: number): string {
-  const mb = bytes / (1024 * 1024);
-  if (mb >= 1) return `${mb.toFixed(1)} MB`;
-  const kb = bytes / 1024;
-  return `${kb.toFixed(1)} KB`;
-}
-
-/** ISO文字列 → "YYYY/MM/DD HH:MM" */
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const h = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${y}/${mo}/${day} ${h}:${mi}`;
-}
-
-/** トラック種別のラベル文字列 (例: "Mic / Mono") */
-function trackLabel(trackKind: string, channels: number): string {
-  const kind = trackKind === "mic" ? "Mic" : "System";
-  const ch = channels === 1 ? "Mono" : "Stereo";
-  return `${kind} / ${ch}`;
-}
 
 /**
  * ミニ波形プレビュー。装飾用のバーパターンを表示する。
@@ -99,9 +72,9 @@ export function RecordingCard({ recording, isExpanded, onToggleExpand }: Props) 
                 {recording.fileName}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {formatDate(recording.createdAt)}
+                {formatRecordedAt(recording.createdAt)}
                 {" \u00B7 "}
-                {formatDuration(recording.durationMs)}
+                {formatDurationMs(recording.durationMs)}
                 {" \u00B7 "}
                 {formatFileSize(recording.fileSizeBytes)}
               </p>
@@ -110,7 +83,7 @@ export function RecordingCard({ recording, isExpanded, onToggleExpand }: Props) 
               <div className="flex shrink-0 gap-1">
                 {recording.tracks.map((track) => (
                   <Badge key={track.trackKind} variant="secondary" className="text-[10px]">
-                    {trackLabel(track.trackKind, track.channels)}
+                    {trackKindLabel(track.trackKind)} / {channelsLabel(track.channels)}
                   </Badge>
                 ))}
               </div>

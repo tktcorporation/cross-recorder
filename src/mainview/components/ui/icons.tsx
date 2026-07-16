@@ -132,3 +132,11 @@ export function ArrowRightIcon(props: IconProps) {
     </Base>
   );
 }
+
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="m6 9 6 6 6-6" />
+    </Base>
+  );
+}

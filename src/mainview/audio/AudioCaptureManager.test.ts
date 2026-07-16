@@ -16,6 +16,7 @@ const { mockPipeline, mockMicCapture, mockSystemCapture, mockChunkWriter } =
     mockMicCapture: {
       start: vi.fn().mockResolvedValue({ getTracks: () => [] }),
       stop: vi.fn(),
+      onTrackEnded: vi.fn(),
     },
     mockSystemCapture: {
       start: vi.fn().mockResolvedValue({ getTracks: () => [] }),
@@ -48,6 +49,7 @@ vi.mock("./MicrophoneCapture.js", () => {
     MicrophoneCapture: class {
       start = mockMicCapture.start;
       stop = mockMicCapture.stop;
+      onTrackEnded = mockMicCapture.onTrackEnded;
     },
   };
 });
@@ -117,6 +119,7 @@ describe("AudioCaptureManager", () => {
     rpc = createMockRpc();
     mockMicCapture.start.mockResolvedValue({ getTracks: () => [] });
     mockMicCapture.stop.mockClear();
+    mockMicCapture.onTrackEnded.mockClear();
     mockSystemCapture.start.mockClear();
     mockSystemCapture.start.mockResolvedValue({ getTracks: () => [] });
     mockSystemCapture.stop.mockClear();
@@ -307,6 +310,47 @@ describe("AudioCaptureManager", () => {
     capturedCallback!();
 
     expect(trackEndedSpy).toHaveBeenCalledWith("system");
+  });
+
+  it("registers onTrackEnded BEFORE calling micCapture.start()", async () => {
+    const callOrder: string[] = [];
+    mockMicCapture.onTrackEnded.mockImplementation(() => {
+      callOrder.push("onTrackEnded");
+    });
+    mockMicCapture.start.mockImplementation(async () => {
+      callOrder.push("start");
+      return { getTracks: () => [] };
+    });
+
+    const manager = new AudioCaptureManager(rpc);
+    await manager.start({
+      micEnabled: true,
+      systemAudioEnabled: false,
+    });
+
+    expect(callOrder).toEqual(["onTrackEnded", "start"]);
+  });
+
+  it("mic onTrackEnded callback reports the mic track ended", async () => {
+    const manager = new AudioCaptureManager(rpc);
+    const trackEndedSpy = vi.fn();
+    manager.onTrackEnded(trackEndedSpy);
+
+    // Capture the callback that AudioCaptureManager passes to micCapture.onTrackEnded
+    let capturedCallback: (() => void) | undefined;
+    mockMicCapture.onTrackEnded.mockImplementation((cb: () => void) => {
+      capturedCallback = cb;
+    });
+
+    await manager.start({
+      micEnabled: true,
+      systemAudioEnabled: false,
+    });
+
+    // Simulate the mic device being unplugged mid-recording
+    capturedCallback!();
+
+    expect(trackEndedSpy).toHaveBeenCalledWith("mic");
   });
 
   it("onError callback is invoked from ChunkWriter errors", () => {

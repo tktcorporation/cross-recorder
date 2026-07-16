@@ -26,11 +26,15 @@ type TrackState = {
   filePath: string;
   bytesWritten: number;
   channels: number;
+  /** MAX_WAV_DATA_SIZE 到達の警告ログを一度だけ出すためのフラグ。 */
+  sizeLimitWarned: boolean;
 };
 
 type SessionState = {
   sessionDir: string;
   tracks: Map<TrackKind, TrackState>;
+  config: RecordingConfig;
+  lastHeaderCheckpointAt: number;
 };
 
 const sessions = new Map<string, SessionState>();
@@ -40,6 +44,49 @@ const recordingsDir = path.join(
   APP_DATA_DIR,
   RECORDINGS_DIR,
 );
+
+/**
+ * WAV の data チャンクサイズ・RIFF チャンクサイズは 32bit unsigned で書き込まれる
+ * (writeWavHeader 参照)。RIFF 側は 36 + dataSize を書くため、dataSize の上限は
+ * 0xFFFFFFFF - 36。48kHz/16bit/stereo で約6.2時間、mono で約12.4時間に相当する。
+ * 超過すると Buffer.writeUInt32LE が RangeError を投げ、finalizeRecording の
+ * ヘッダー書き込みループが中断して録音全体が失われるため、書き込み側であらかじめ
+ * この上限でトラックへの書き込みを打ち切る。
+ */
+export const MAX_WAV_DATA_SIZE = 0xffffffff - 36;
+
+/**
+ * クラッシュ・強制終了時のデータ保護のため、この間隔でヘッダーの data サイズを
+ * 実際の書き込み済みバイト数へ書き直す。プロセスが finalizeRecording の前に
+ * 不意に終了しても、直近この時間分の録音しか失われない。
+ */
+export const HEADER_CHECKPOINT_INTERVAL_MS = 2000;
+
+/**
+ * buffer のうち track に書き込める範囲（バイト数）を 32bit サイズ上限でクランプする。
+ * 上限でチャンクを打ち切る場合、frameSize (channels * bytesPerSample) の倍数に
+ * 切り捨てて、末尾のサンプルフレームがチャンネル数の途中で終わらないようにする
+ * （境界に達していない通常の書き込みは frameSize に関わらずそのまま通す）。
+ */
+export function clampChunkForTrack(
+  bytesWritten: number,
+  chunkLength: number,
+  maxSize: number = MAX_WAV_DATA_SIZE,
+  frameSize: number = 1,
+): number {
+  const remaining = maxSize - bytesWritten;
+  if (remaining <= 0) return 0;
+  if (chunkLength <= remaining) return chunkLength;
+  return remaining - (remaining % frameSize);
+}
+
+export function isCheckpointDue(
+  lastCheckpointAt: number,
+  now: number,
+  intervalMs: number = HEADER_CHECKPOINT_INTERVAL_MS,
+): boolean {
+  return now - lastCheckpointAt >= intervalMs;
+}
 
 function writeWavHeader(
   fd: number,
@@ -99,10 +146,16 @@ export function startSession(
           filePath,
           bytesWritten: 0,
           channels: track.channels,
+          sizeLimitWarned: false,
         });
       }
 
-      sessions.set(sessionId, { sessionDir, tracks: trackMap });
+      sessions.set(sessionId, {
+        sessionDir,
+        tracks: trackMap,
+        config,
+        lastHeaderCheckpointAt: Date.now(),
+      });
 
       return { success: true as const, filePath: sessionDir };
     },
@@ -112,6 +165,30 @@ export function startSession(
         reason: String(error),
       }),
   });
+}
+
+/**
+ * セッション内の全トラックのヘッダーを現在の bytesWritten で書き直す。
+ * finalizeRecording の最終ヘッダー書き込みもこの関数を使うことで、
+ * ヘッダーが常に session.config（起動時に固定された設定）のみを参照する
+ * ようにし、複数箇所で config の値がずれる余地をなくしている。
+ */
+function checkpointHeaders(session: SessionState): void {
+  for (const track of session.tracks.values()) {
+    writeWavHeader(
+      track.fd,
+      track.channels,
+      session.config.sampleRate,
+      session.config.bitDepth,
+      track.bytesWritten,
+    );
+  }
+}
+
+function checkpointHeadersIfDue(session: SessionState, now: number): void {
+  if (!isCheckpointDue(session.lastHeaderCheckpointAt, now)) return;
+  session.lastHeaderCheckpointAt = now;
+  checkpointHeaders(session);
 }
 
 function writeChunkToTrack(
@@ -125,9 +202,50 @@ function writeChunkToTrack(
   const track = session.tracks.get(trackKind);
   if (!track) throw new Error(`Track not found: ${trackKind} in session ${sessionId}`);
 
-  fs.writeSync(track.fd, buffer, 0, buffer.length);
-  track.bytesWritten += buffer.length;
-  return { success: true, chunkSizeBytes: buffer.length };
+  // 空チャンクは「上限到達」ではないので、そのシグナルと混同しないよう
+  // clampChunkForTrack に渡す前に弾く（渡すと remaining に関わらず 0 になり、
+  // 上限到達の警告が誤発火して sizeLimitWarned を消費してしまう）。
+  if (buffer.length === 0) {
+    return { success: true, chunkSizeBytes: 0 };
+  }
+
+  const frameSize = track.channels * (session.config.bitDepth / 8);
+  const writable = clampChunkForTrack(
+    track.bytesWritten,
+    buffer.length,
+    MAX_WAV_DATA_SIZE,
+    frameSize,
+  );
+  if (writable <= 0) {
+    if (!track.sizeLimitWarned) {
+      track.sizeLimitWarned = true;
+      console.warn(
+        `[FileService] Track "${trackKind}" reached the WAV format's 32-bit size limit ` +
+          `(${MAX_WAV_DATA_SIZE} bytes); further audio for this track will not be recorded ` +
+          `(session ${sessionId}). Other tracks keep recording normally.`,
+      );
+    }
+    return { success: true, chunkSizeBytes: 0 };
+  }
+
+  const toWrite = writable < buffer.length ? buffer.subarray(0, writable) : buffer;
+  // 明示的に書き込み位置を指定する。fd の暗黙カーソルは位置指定なしの
+  // write でのみ進み、writeWavHeader の位置指定 (position=0) 書き込みでは
+  // 進まない。位置指定なしで書くと常にファイル先頭 (カーソル=0) から書き
+  // 始めてしまい、ヘッダーを録音データで上書きしてしまうため、ヘッダー分の
+  // オフセットと累計書き込み済みバイト数から書き込み位置を毎回計算する。
+  fs.writeSync(
+    track.fd,
+    toWrite,
+    0,
+    toWrite.length,
+    WAV_HEADER_SIZE + track.bytesWritten,
+  );
+  track.bytesWritten += toWrite.length;
+
+  checkpointHeadersIfDue(session, Date.now());
+
+  return { success: true, chunkSizeBytes: toWrite.length };
 }
 
 /** Synchronous write for NativeSystemAudioCapture callback. */
@@ -169,15 +287,11 @@ export function finalizeRecording(
 
     return yield* Effect.try({
       try: () => {
-        // Rewrite WAV headers and close FDs for each track
+        // 最終ヘッダーを書き直してから FD を閉じる（checkpointHeaders と
+        // 同じ関数を使うことで、途中のチェックポイントと最終ヘッダーが
+        // session.config という単一の情報源から常に一致するようにする）
+        checkpointHeaders(session);
         for (const track of session.tracks.values()) {
-          writeWavHeader(
-            track.fd,
-            track.channels,
-            config.sampleRate,
-            config.bitDepth,
-            track.bytesWritten,
-          );
           fs.closeSync(track.fd);
         }
 

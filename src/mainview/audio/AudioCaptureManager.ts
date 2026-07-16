@@ -120,6 +120,9 @@ export class AudioCaptureManager {
     try {
       // Set up each track independently
       if (config.micEnabled) {
+        this.micCapture.onTrackEnded(() => {
+          this.onTrackEndedCallback?.("mic");
+        });
         const micStream = await this.micCapture.start(config.micDeviceId);
         this.pipeline.addTrack("mic", micStream, 1, (data: ArrayBuffer) => {
           this.chunkWriter?.enqueue(this.sessionId!, "mic", data);

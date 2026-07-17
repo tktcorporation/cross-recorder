@@ -1,5 +1,25 @@
 # cross-recorder
 
+## 0.13.0
+
+### Minor Changes
+
+- [#59](https://github.com/tktcorporation/cross-recorder/pull/59) [`9591d15`](https://github.com/tktcorporation/cross-recorder/commit/9591d15ad25ae5939df60a8486c98de7824cb67d) Thanks [@tktcorporation](https://github.com/tktcorporation)! - UI をスタジオ風のダークテーマに刷新。elevation を持つカラートークン体系、統一されたアイコンセット、録音中にグローする録音ボタン、状態ラベル付きのヒーロータイマー、接地した音声ソースドック、タイトルバーの LIVE インジケータ、ライブラリの空状態を改善した。
+
+### Patch Changes
+
+- [#61](https://github.com/tktcorporation/cross-recorder/pull/61) [`3921dbf`](https://github.com/tktcorporation/cross-recorder/commit/3921dbf871bd3ce560e84c3f370857f727e36856) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 設定パネルの Language 入力欄のスタイルを他の入力欄と統一し、マイクデバイス選択のドロップダウンにテーマに合わせたシェブロンアイコンを追加。未使用の重複コンポーネント（TranscriptionSettings）を削除。
+
+- [#66](https://github.com/tktcorporation/cross-recorder/pull/66) [`4a0caca`](https://github.com/tktcorporation/cross-recorder/commit/4a0cacaecc059e70dfe18bd68ce3b411eabee330) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 録音処理の安定性を改善。
+
+  - WAV ヘッダーを録音中に定期的にチェックポイントし、クラッシュ・強制終了時もそれまでの録音データを保持するようにした
+  - 32bit の WAV データサイズ上限（約 6.2 時間/ステレオ、約 12.4 時間/モノラル）に到達しても録音全体が失われず、そのトラックのみ書き込みを打ち切って安全に継続するようにした
+  - 録音チャンクの書き込み位置を明示的に指定するよう修正し、ヘッダーが録音データで上書きされないようにした
+  - マイクの切断を検知できるようにした（システム音声トラックのみだった TRACK_LOST 検知をマイクにも追加）
+  - マイクデバイス一覧の変更時に、選択中のデバイスを不必要に上書きしていた不具合を修正
+  - Linux (PipeWire) のシステム音声キャプチャが無音になっていた不具合と、権限チェックが常に失敗していた不具合を修正
+  - ネイティブシステム音声キャプチャで発生したエラーが握りつぶされずに通知されるよう修正
+
 ## 0.12.0
 
 ### Minor Changes

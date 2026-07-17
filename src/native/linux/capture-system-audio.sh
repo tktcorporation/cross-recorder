@@ -110,13 +110,21 @@ if [[ "$BACKEND" == "pipewire" ]]; then
   # 繋ぐか」を既定シンクのモニターへ誘導するだけ）。--target は省略して既定の
   # auto のままにし、stream.capture.sink=true だけで
   # 「聞こえている音を録音する」既定シンクのモニターへリンクさせる。
-  pw-cat \
-    --record \
-    --format=s16 \
-    --rate="$SAMPLE_RATE" \
-    --channels="$CHANNELS" \
-    -P '{ stream.capture.sink=true }' \
-    - &
+  PW_CAT_ARGS=(
+    --record
+    --format=s16
+    --rate="$SAMPLE_RATE"
+    --channels="$CHANNELS"
+    -P '{ stream.capture.sink=true }'
+  )
+  # 標準出力 (-) への出力は既定で AU コンテナが付与され、生の PCM にならない
+  # (pw-cat --raw を指定しない限り libsndfile が .au 形式でヘッダーを書く)。
+  # --raw は比較的新しいバージョンの pw-cat にのみ存在するため、未対応の
+  # バージョンに渡すと起動時エラーになる。--help に現れる場合のみ追加する。
+  if pw-cat --help 2>&1 | grep -q -- '--raw'; then
+    PW_CAT_ARGS+=(--raw)
+  fi
+  pw-cat "${PW_CAT_ARGS[@]}" - &
   CHILD_PID=$!
 elif [[ "$BACKEND" == "pulseaudio" ]]; then
   # parec でデフォルトモニターソースからキャプチャ

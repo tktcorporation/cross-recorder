@@ -1,7 +1,8 @@
+import { TrackEndedWatcher } from "./TrackEndedWatcher.js";
+
 export class SystemAudioCapture {
   private stream: MediaStream | null = null;
-  private onTrackEndedCallback: (() => void) | null = null;
-  private boundTrackEndedHandler: (() => void) | null = null;
+  private readonly trackEndedWatcher = new TrackEndedWatcher();
   private sampleRate: number;
   private channels: number;
 
@@ -41,17 +42,10 @@ export class SystemAudioCapture {
     // is disabled upfront in acquireDisplayMedia() via audio constraints.
     // No need for applyConstraints() here — that approach was unreliable.
 
-    // Listen for track ended events (e.g. display session terminated by OS)
-    this.boundTrackEndedHandler = () => {
-      this.onTrackEndedCallback?.();
-    };
-    for (const track of this.stream.getAudioTracks()) {
-      track.addEventListener("ended", this.boundTrackEndedHandler);
-    }
-    // Video track ending also terminates the display session
-    for (const track of this.stream.getVideoTracks()) {
-      track.addEventListener("ended", this.boundTrackEndedHandler);
-    }
+    // Listen for track ended events (e.g. display session terminated by OS).
+    // Both audio and video tracks are watched — video track ending also
+    // terminates the display session.
+    this.trackEndedWatcher.attach(this.stream.getTracks());
 
     return this.stream;
   }
@@ -94,23 +88,16 @@ export class SystemAudioCapture {
   }
 
   onTrackEnded(callback: () => void): void {
-    this.onTrackEndedCallback = callback;
+    this.trackEndedWatcher.onEnded(callback);
   }
 
   stop(): void {
     if (this.stream) {
-      // Remove event listeners before stopping
-      if (this.boundTrackEndedHandler) {
-        for (const track of this.stream.getTracks()) {
-          track.removeEventListener("ended", this.boundTrackEndedHandler);
-        }
-        this.boundTrackEndedHandler = null;
-      }
+      this.trackEndedWatcher.detach(this.stream.getTracks());
       for (const track of this.stream.getTracks()) {
         track.stop();
       }
       this.stream = null;
     }
-    this.onTrackEndedCallback = null;
   }
 }

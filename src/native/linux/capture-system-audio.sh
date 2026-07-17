@@ -41,29 +41,50 @@ write_status() {
   echo "$1" >&2
 }
 
-# Detect available audio backend
+# Detect available audio backend.
+# pw-cat を標準出力 (-) へ書き出すと、既定では libsndfile 経由で AU
+# コンテナが付与され、生の PCM にならない（pw-cat --raw を指定しない限り）。
+# --raw が無いバージョンではこの汚染を防ぐ手段がないため、pw-cat が
+# あっても --raw に対応していなければ PipeWire backend として選ばない
+# （生 PCM を保証できないデータで録音を「成功」させるくらいなら、
+# PulseAudio へフォールバックするか明示的にエラーにする）。
 BACKEND=""
-if command -v pw-cat >/dev/null 2>&1; then
+if command -v pw-cat >/dev/null 2>&1 && pw-cat --help 2>&1 | grep -q -- '--raw'; then
   BACKEND="pipewire"
 elif command -v parec >/dev/null 2>&1; then
   BACKEND="pulseaudio"
 fi
 
 if [[ -z "$BACKEND" ]]; then
-  write_status '{"error":"No supported audio backend found. Install PipeWire (pw-cat) or PulseAudio (parec)."}'
+  if command -v pw-cat >/dev/null 2>&1; then
+    write_status '{"error":"pw-cat was found but does not support --raw, so raw PCM output to stdout cannot be guaranteed on this PipeWire version. Install a newer PipeWire, or install PulseAudio (parec) as a fallback."}'
+  else
+    write_status '{"error":"No supported audio backend found. Install PipeWire (pw-cat, with --raw support) or PulseAudio (parec)."}'
+  fi
   exit 1
 fi
 
 # --check mode: verify audio backend is available and exit
 if [[ "$CHECK_ONLY" == "true" ]]; then
   if [[ "$BACKEND" == "pipewire" ]]; then
-    # pw-cat --list-targets でデバイスが取得できるか確認
-    if pw-cat --list-targets --playback >/dev/null 2>&1; then
+    if command -v pw-cli >/dev/null 2>&1; then
+      # pw-cat に対象一覧を取得するオプションはない。PipeWire デーモンに
+      # 接続できるかどうかを pw-cli info で確認する。
+      if pw-cli info 0 >/dev/null 2>&1; then
+        write_status '{"check":"ok"}'
+        exit 0
+      else
+        write_status '{"check":"error","reason":"PipeWire is available but cannot connect to the daemon"}'
+        exit 1
+      fi
+    else
+      # pw-cli が別パッケージに分かれているディストリビューションでは
+      # 未導入のことがある。デーモン到達性を個別確認する手段がないため、
+      # pw-cat バイナリの存在をもって ok とする。実際に接続できない場合は
+      # 録音開始時のプロセス起動チェック（kill -0 / 終了コード監視）で
+      # エラーとして検知される。
       write_status '{"check":"ok"}'
       exit 0
-    else
-      write_status '{"check":"error","reason":"PipeWire is available but cannot list audio targets"}'
-      exit 1
     fi
   elif [[ "$BACKEND" == "pulseaudio" ]]; then
     if pactl info >/dev/null 2>&1; then
@@ -92,14 +113,22 @@ trap cleanup SIGTERM SIGINT
 # pw-cat / parec はモニターソースからPCMを標準出力に書き出す。
 # デフォルトのモニターソースが自動選択される（全システム音声）。
 if [[ "$BACKEND" == "pipewire" ]]; then
-  # pw-cat --record でモニターストリームをキャプチャ
-  # --target 0 = default audio sink monitor
+  # pw-cat --record でモニターストリームをキャプチャ。
+  # --target=0 は pw_stream_connect() の PW_STREAM_FLAG_AUTOCONNECT を
+  # 落として自動リンク自体を無効化してしまうため、stream.capture.sink=true
+  # と併用しても効果がない（後者は自動リンクが行われる場合に「どのノードへ
+  # 繋ぐか」を既定シンクのモニターへ誘導するだけ）。--target は省略して既定の
+  # auto のままにし、stream.capture.sink=true だけで
+  # 「聞こえている音を録音する」既定シンクのモニターへリンクさせる。
+  # --raw で生 PCM 出力を強制する（BACKEND=pipewire は --raw 対応済みの
+  # pw-cat でのみ選ばれるため、ここでは常に付与できる）。
   pw-cat \
     --record \
     --format=s16 \
     --rate="$SAMPLE_RATE" \
     --channels="$CHANNELS" \
-    --target=0 \
+    -P '{ stream.capture.sink=true }' \
+    --raw \
     - &
   CHILD_PID=$!
 elif [[ "$BACKEND" == "pulseaudio" ]]; then

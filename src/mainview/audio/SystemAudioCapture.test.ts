@@ -1,30 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SystemAudioCapture } from "./SystemAudioCapture.js";
-
-function createMockTrack(kind: "audio" | "video", label = "mock-track") {
-  return {
-    kind,
-    label,
-    enabled: true,
-    stop: vi.fn(),
-    applyConstraints: vi.fn().mockResolvedValue(undefined),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  };
-}
-
-function createMockStream(
-  audioTracks: ReturnType<typeof createMockTrack>[] = [],
-  videoTracks: ReturnType<typeof createMockTrack>[] = [],
-) {
-  const allTracks = [...audioTracks, ...videoTracks];
-  return {
-    getTracks: vi.fn(() => [...allTracks]),
-    getAudioTracks: vi.fn(() => [...audioTracks]),
-    getVideoTracks: vi.fn(() => [...videoTracks]),
-    removeTrack: vi.fn(),
-  };
-}
+import { createMockTrack, createMockStream } from "./testHelpers/mockMediaStream.js";
 
 describe("SystemAudioCapture", () => {
   let capture: SystemAudioCapture;

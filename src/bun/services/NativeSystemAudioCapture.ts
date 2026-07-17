@@ -396,8 +396,15 @@ export class NativeSystemAudioCapture {
             sampleCount = 0;
           }
         }
-      } catch {
-        /* stream closed */
+      } catch (err) {
+        // stop() が既に this.capture を null にしていれば意図した停止なので
+        // 無視する（オプショナルチェイニングで no-op になる）。それ以外は
+        // writeChunk（ディスク書き込み・ヘッダーチェックポイント含む）や
+        // ストリーム読み取りの想定外の失敗なので、握りつぶさず呼び出し元へ
+        // 伝える。
+        this.capture?.onError?.(
+          err instanceof Error ? err.message : String(err),
+        );
       }
     })();
   }

@@ -41,16 +41,26 @@ write_status() {
   echo "$1" >&2
 }
 
-# Detect available audio backend
+# Detect available audio backend.
+# pw-cat を標準出力 (-) へ書き出すと、既定では libsndfile 経由で AU
+# コンテナが付与され、生の PCM にならない（pw-cat --raw を指定しない限り）。
+# --raw が無いバージョンではこの汚染を防ぐ手段がないため、pw-cat が
+# あっても --raw に対応していなければ PipeWire backend として選ばない
+# （生 PCM を保証できないデータで録音を「成功」させるくらいなら、
+# PulseAudio へフォールバックするか明示的にエラーにする）。
 BACKEND=""
-if command -v pw-cat >/dev/null 2>&1; then
+if command -v pw-cat >/dev/null 2>&1 && pw-cat --help 2>&1 | grep -q -- '--raw'; then
   BACKEND="pipewire"
 elif command -v parec >/dev/null 2>&1; then
   BACKEND="pulseaudio"
 fi
 
 if [[ -z "$BACKEND" ]]; then
-  write_status '{"error":"No supported audio backend found. Install PipeWire (pw-cat) or PulseAudio (parec)."}'
+  if command -v pw-cat >/dev/null 2>&1; then
+    write_status '{"error":"pw-cat was found but does not support --raw, so raw PCM output to stdout cannot be guaranteed on this PipeWire version. Install a newer PipeWire, or install PulseAudio (parec) as a fallback."}'
+  else
+    write_status '{"error":"No supported audio backend found. Install PipeWire (pw-cat, with --raw support) or PulseAudio (parec)."}'
+  fi
   exit 1
 fi
 
@@ -110,21 +120,16 @@ if [[ "$BACKEND" == "pipewire" ]]; then
   # 繋ぐか」を既定シンクのモニターへ誘導するだけ）。--target は省略して既定の
   # auto のままにし、stream.capture.sink=true だけで
   # 「聞こえている音を録音する」既定シンクのモニターへリンクさせる。
-  PW_CAT_ARGS=(
-    --record
-    --format=s16
-    --rate="$SAMPLE_RATE"
-    --channels="$CHANNELS"
-    -P '{ stream.capture.sink=true }'
-  )
-  # 標準出力 (-) への出力は既定で AU コンテナが付与され、生の PCM にならない
-  # (pw-cat --raw を指定しない限り libsndfile が .au 形式でヘッダーを書く)。
-  # --raw は比較的新しいバージョンの pw-cat にのみ存在するため、未対応の
-  # バージョンに渡すと起動時エラーになる。--help に現れる場合のみ追加する。
-  if pw-cat --help 2>&1 | grep -q -- '--raw'; then
-    PW_CAT_ARGS+=(--raw)
-  fi
-  pw-cat "${PW_CAT_ARGS[@]}" - &
+  # --raw で生 PCM 出力を強制する（BACKEND=pipewire は --raw 対応済みの
+  # pw-cat でのみ選ばれるため、ここでは常に付与できる）。
+  pw-cat \
+    --record \
+    --format=s16 \
+    --rate="$SAMPLE_RATE" \
+    --channels="$CHANNELS" \
+    -P '{ stream.capture.sink=true }' \
+    --raw \
+    - &
   CHILD_PID=$!
 elif [[ "$BACKEND" == "pulseaudio" ]]; then
   # parec でデフォルトモニターソースからキャプチャ

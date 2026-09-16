@@ -220,7 +220,10 @@ function parseRulePaths(rulePath: string, markdown: string): string[] {
 
 function buildCursorRuleMdc(rulePath: string): { relativePath: string; content: string } {
   const rel = relative(repoRoot, rulePath).replaceAll('\\', '/');
-  const markdown = readFileSync(rulePath, 'utf8');
+  // core.autocrlf 有効な Windows チェックアウトでは frontmatter が `---\r\n` になり、
+  // 以降の LF 前提の判定（`---\n` 一致・行分割）がすべて素通りする。読み込み直後に
+  // 揃える。
+  const markdown = readFileSync(rulePath, 'utf8').replaceAll('\r\n', '\n');
   const paths = parseRulePaths(rulePath, markdown);
   const title =
     markdown

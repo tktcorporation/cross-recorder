@@ -17,7 +17,7 @@
  * ままであるものに限る（track-edits.ts が記録）。
  * 自分が書いていない差分はユーザーか別プロセスの作業なので、消す判断はエージェントがしない。
  */
-import { Glob } from 'bun';
+import { $, Glob } from 'bun';
 import { existsSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import {
@@ -350,6 +350,12 @@ function worktreeAddPath(args: ShellWord[]): string | undefined {
   return undefined;
 }
 
+/** `git -C <dir> ...` で選ばれたリポジトリ（サブモジュールを含む）のトップレベル。 */
+async function repoTopLevel(dir: string): Promise<string> {
+  const result = await $`git -C ${dir} rev-parse --show-toplevel`.quiet().nothrow();
+  return result.exitCode === 0 ? result.text().trim() : dir;
+}
+
 for (const entry of commands) {
   if (!entry.direct || entry.name !== 'git') continue;
   const target = gitTarget(entry);
@@ -362,8 +368,13 @@ for (const entry of commands) {
   // 安全側に倒して止める。
   if (path === undefined || target.directory.kind === 'unknown')
     block('worktreeは.claude/worktrees/配下に作成してください。');
+  // 期待する .claude/worktrees はセッション起点のプロジェクトルート（`root`）固定では
+  // なく、このコマンドが対象とするリポジトリ（`git -C <submodule>` 等）のトップレベル
+  // を都度解決する。固定した root と比較すると、サブモジュール配下での正当な
+  // `git -C submodule worktree add .claude/worktrees/x` まで誤ってブロックしてしまう。
+  const commandRoot = await repoTopLevel(target.directory.path);
   const absolutePath = resolve(target.directory.path, path);
-  const expectedRoot = resolve(root, '.claude/worktrees');
+  const expectedRoot = resolve(commandRoot, '.claude/worktrees');
   if (absolutePath === expectedRoot || !isPathWithinOrEqual(expectedRoot, absolutePath))
     block('worktreeは.claude/worktrees/配下に作成してください。');
 }

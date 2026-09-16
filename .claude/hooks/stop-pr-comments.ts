@@ -63,10 +63,8 @@ const { number, url } = view;
 if (!number) process.exit(0);
 
 const repo = await $`gh repo view --json nameWithOwner --jq .nameWithOwner`.quiet().nothrow();
-const me = await $`gh api user --jq .login`.quiet().nothrow();
-if (repo.exitCode !== 0 || me.exitCode !== 0) process.exit(0);
+if (repo.exitCode !== 0) process.exit(0);
 const [owner, name] = repo.text().trim().split('/');
-const login = me.text().trim();
 
 interface Thread {
   id: string;
@@ -126,10 +124,12 @@ for (;;) {
   after = page.pageInfo.endCursor ?? null;
   if (!after) break;
 }
-// 未解決で、最後の発言が自分ではないスレッドだけが対応待ち
-const waiting = threads.filter(
-  (thread) => !thread.isResolved && thread.comments.nodes[0]?.author?.login !== login,
-);
+// GitHub 上で isResolved になっていないスレッドはすべて対応待ち。「最後の発言が自分」を
+// 免除条件に含めない: 返信しただけで resolve を呼び忘れた場合も isResolved は false の
+// ままなので、そのまま対応待ちとして拾う（この hook の目的そのものである「返信と resolve
+// の両方を済ませたか」を確かめられなくなる）。同じ状態を毎ターン繰り返し報告しないための
+// 重複排除は、直後の nagged（スレッド id + 最新コメント id）が担う。
+const waiting = threads.filter((thread) => !thread.isResolved);
 if (waiting.length === 0) process.exit(0);
 
 const naggedPath = directory

@@ -19,6 +19,8 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - uses: oven-sh/setup-bun@v2
+
       - run: pnpm install --frozen-lockfile
 
       - name: Lint
@@ -32,3 +34,6 @@ jobs:
 
       - name: Vite build
         run: pnpm build:vite
+
+      - name: Agent adapter drift check
+        run: pnpm agent-adapters:check

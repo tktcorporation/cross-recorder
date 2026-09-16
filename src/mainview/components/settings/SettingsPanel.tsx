@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "../ui/button.js";
 import { Switch } from "../ui/switch.js";
 import { useRpc } from "../../hooks/useRpc.js";
+import { omitUndefinedEntries } from "@/lib/utils.js";
 import type { TranscriptionConfig } from "@shared/types.js";
 
 /**
@@ -34,7 +35,13 @@ export function SettingsPanel({ onClose }: Props) {
       .getTranscriptionConfig({})
       .then((res) => {
         const { nativeAvailable: available, ...configValues } = res;
-        setConfig(configValues);
+        // フィールドが欠けたレスポンス（初回起動時や旧スキーマ由来）でも
+        // input を uncontrolled にしないよう、undefined のフィールドは
+        // 上書きせず useState の既定値を残す。
+        setConfig((prev) => ({
+          ...prev,
+          ...omitUndefinedEntries(configValues),
+        }));
         setNativeAvailable(available);
       })
       .catch((err) => {

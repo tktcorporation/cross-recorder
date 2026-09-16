@@ -37,6 +37,7 @@ export function RecordingView() {
 
   const isRecording = recordingState === "recording";
   const isIdle = recordingState === "idle";
+  const isStopping = recordingState === "stopping";
   const noSourceSelected = !micEnabled && !systemAudioEnabled;
 
   const [lastRecording, setLastRecording] =
@@ -66,6 +67,42 @@ export function RecordingView() {
   const handleDismissPlayer = () => {
     setLastRecording(null);
   };
+
+  // 録音ボタンと同じ disabled 条件（RecordButton の isStopping ガードも含む）。
+  // キーボードショートカットがボタンより広い範囲で操作を受け付けないようにする。
+  const recordButtonDisabled = isStopping || (isIdle && noSourceSelected);
+
+  // 最新のハンドラと disabled 状態を ref で保持し、録音中の頻繁な再レンダー
+  // （タイマー更新）のたびに keydown リスナーを張り直さないようにする。
+  const handleRecordClickRef = useRef(handleRecordClick);
+  handleRecordClickRef.current = handleRecordClick;
+  const recordButtonDisabledRef = useRef(recordButtonDisabled);
+  recordButtonDisabledRef.current = recordButtonDisabled;
+
+  // スペースキーで録音の開始/停止をトグルする（Voice Memos / QuickTime 等と同様）。
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space") return;
+
+      const active = document.activeElement;
+      const tagName = active instanceof HTMLElement ? active.tagName : "";
+      if (
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        tagName === "SELECT"
+      ) {
+        return;
+      }
+
+      if (recordButtonDisabledRef.current) return;
+
+      event.preventDefault();
+      handleRecordClickRef.current();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const statusLabel = isRecording
     ? "Recording"

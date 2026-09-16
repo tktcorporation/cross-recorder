@@ -33,6 +33,7 @@ export function PostRecordingPlayer({ recording, onDismiss }: Props) {
   const {
     containerRef,
     isLoading,
+    loadError,
     isPlaying,
     currentTime,
     duration,
@@ -56,6 +57,12 @@ export function PostRecordingPlayer({ recording, onDismiss }: Props) {
       {isLoading ? (
         <div className="flex items-center justify-center py-6">
           <span className="text-xs text-muted-foreground">Loading...</span>
+        </div>
+      ) : loadError ? (
+        <div className="flex items-center justify-center py-6">
+          <span className="text-xs text-destructive">
+            Playback unavailable: {loadError}
+          </span>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -82,7 +89,7 @@ export function PostRecordingPlayer({ recording, onDismiss }: Props) {
           variant="default"
           size="icon"
           onClick={playPause}
-          disabled={isLoading}
+          disabled={isLoading || Boolean(loadError)}
           className="h-9 w-9 shrink-0 rounded-full bg-playback text-playback-foreground shadow-glow-playback hover:bg-playback/90"
           aria-label={isPlaying ? "Pause" : "Play"}
         >

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRpc } from "../../hooks/useRpc.js";
 import { useRecordingStore } from "../../stores/recordingStore.js";
 import {
@@ -48,6 +48,7 @@ export function ExpandedPlayer({ recording }: Props) {
   const {
     containerRef,
     isLoading,
+    loadError,
     isPlaying,
     currentTime,
     duration,
@@ -73,6 +74,25 @@ export function ExpandedPlayer({ recording }: Props) {
   const [exportResult, setExportResult] = useState<
     { ok: true; filePath: string } | { ok: false; error: string } | null
   >(null);
+
+  // 削除の二段階確認。1 回目のクリックで確認待ちへ入り、一定時間内の
+  // 2 回目のクリックで実際に削除する。時間切れで通常表示に戻す。
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  const clearConfirmTimeout = useCallback(() => {
+    if (confirmTimeoutRef.current !== null) {
+      clearTimeout(confirmTimeoutRef.current);
+      confirmTimeoutRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => clearConfirmTimeout();
+  }, [clearConfirmTimeout]);
 
   // バックエンドからの文字起こし進捗通知を受け取る
   useEffect(() => {
@@ -142,10 +162,34 @@ export function ExpandedPlayer({ recording }: Props) {
     await request.openFileLocation({ filePath: recording.filePath });
   };
 
-  const handleDelete = async () => {
+  const resetDeleteConfirm = () => {
+    clearConfirmTimeout();
+    setConfirmingDelete(false);
+  };
+
+  const handleDeleteClick = () => {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      setDeleteError(null);
+      clearConfirmTimeout();
+      confirmTimeoutRef.current = setTimeout(() => {
+        setConfirmingDelete(false);
+        confirmTimeoutRef.current = null;
+      }, 3000);
+      return;
+    }
+
+    clearConfirmTimeout();
+    setConfirmingDelete(false);
     dispose();
-    await request.deleteRecording({ recordingId: recording.id });
-    removeRecording(recording.id);
+    request
+      .deleteRecording({ recordingId: recording.id })
+      .then(() => {
+        removeRecording(recording.id);
+      })
+      .catch((err) => {
+        setDeleteError(String(err));
+      });
   };
 
   return (
@@ -154,6 +198,12 @@ export function ExpandedPlayer({ recording }: Props) {
       {isLoading ? (
         <div className="flex items-center justify-center py-6">
           <span className="text-xs text-muted-foreground">Loading...</span>
+        </div>
+      ) : loadError ? (
+        <div className="flex items-center justify-center py-6">
+          <span className="text-xs text-destructive">
+            Playback unavailable: {loadError}
+          </span>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -181,7 +231,7 @@ export function ExpandedPlayer({ recording }: Props) {
             variant="default"
             size="icon"
             onClick={playPause}
-            disabled={isLoading}
+            disabled={isLoading || Boolean(loadError)}
             className="h-9 w-9 shrink-0 rounded-full bg-playback text-playback-foreground shadow-glow-playback hover:bg-playback/90"
             aria-label={isPlaying ? "Pause" : "Play"}
           >
@@ -202,7 +252,10 @@ export function ExpandedPlayer({ recording }: Props) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleTranscribe}
+            onClick={() => {
+              resetDeleteConfirm();
+              handleTranscribe();
+            }}
             disabled={isLoading || isTranscribing || tracks.length === 0}
             className="px-2 text-xs"
           >
@@ -212,7 +265,10 @@ export function ExpandedPlayer({ recording }: Props) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => handleExport("wav")}
+            onClick={() => {
+              resetDeleteConfirm();
+              handleExport("wav");
+            }}
             disabled={isLoading || exportingFormat !== null}
             className="px-2 text-xs"
           >
@@ -222,7 +278,10 @@ export function ExpandedPlayer({ recording }: Props) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => handleExport("mp3")}
+            onClick={() => {
+              resetDeleteConfirm();
+              handleExport("mp3");
+            }}
             disabled={isLoading || exportingFormat !== null}
             className="px-2 text-xs"
           >
@@ -232,7 +291,10 @@ export function ExpandedPlayer({ recording }: Props) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleOpenFolder}
+            onClick={() => {
+              resetDeleteConfirm();
+              handleOpenFolder();
+            }}
             className="px-2 text-xs"
           >
             <FolderIcon className="h-3.5 w-3.5" />
@@ -241,11 +303,15 @@ export function ExpandedPlayer({ recording }: Props) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleDelete}
-            className="px-2 text-xs hover:bg-destructive/10 hover:text-destructive"
+            onClick={handleDeleteClick}
+            className={
+              confirmingDelete
+                ? "bg-destructive/10 px-2 text-xs text-destructive"
+                : "px-2 text-xs hover:bg-destructive/10 hover:text-destructive"
+            }
           >
             <TrashIcon className="h-3.5 w-3.5" />
-            Delete
+            {confirmingDelete ? "Confirm delete?" : "Delete"}
           </Button>
         </div>
       </div>
@@ -259,6 +325,11 @@ export function ExpandedPlayer({ recording }: Props) {
       {exportResult && !exportResult.ok && (
         <p className="text-xs text-destructive">
           Export failed: {exportResult.error}
+        </p>
+      )}
+      {deleteError && (
+        <p className="text-xs text-destructive">
+          Delete failed: {deleteError}
         </p>
       )}
 

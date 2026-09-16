@@ -18,6 +18,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "oxlint --fix",
+    "agent-adapters:generate": "bun scripts/generate-agent-adapters.ts",
+    "agent-adapters:check": "bun scripts/generate-agent-adapters.ts --check",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "changeset publish"

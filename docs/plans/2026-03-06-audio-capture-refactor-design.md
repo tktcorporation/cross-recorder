@@ -1,3 +1,8 @@
+---
+review-by: 2026-10-16
+review-reason: ziku pull で docs-lifecycle ポリシー（ephemeral 7 日）をこのリポジトリへ新規導入したばかりで、導入前から存在する docs/plans/ 配下を未トリアージ。実装済みなら削除、設計として残すなら docs/design/ へ昇格を検討する。
+---
+
 # Audio Capture Refactor Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

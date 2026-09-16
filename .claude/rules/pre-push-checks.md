@@ -25,7 +25,7 @@ pnpm build:vite
 
 `changeset-check.yml` に対応。`src/` や `electrobun.config` 配下のコード変更がある場合は、
 changeset ファイル (`.changeset/<名前>.md`) が含まれていることを確認する。
-詳細は `pr-workflow.md` を参照。
+詳細は `ci-workflow.md` を参照。
 
 ## ルール
 

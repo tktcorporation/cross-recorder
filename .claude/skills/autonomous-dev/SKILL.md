@@ -18,7 +18,7 @@ description: |
 このスキルは特定の言語・ツールを前提にしない。着手時に作業対象プロジェクトの作法を特定し、以降のフェーズではそれを使う。
 
 - **品質ゲートのコマンド**: プロジェクトの指示ファイル（CLAUDE.md / AGENTS.md 等）→ CI 設定（`.github/workflows/` 等）→ `package.json` / `pyproject.toml` / `Makefile` の順に確認する。lint・テストに加えて、型チェック・ビルド・フォーマットチェックがあればそれも含める
-- **適用ルール**: CLAUDE.md のルール表や `.claude/rules/` から、変更対象ファイルに適用されるルールを確認する。実在を確認したルールだけに従う（例: `robustness.md`、`code-intent-documentation.md`）
+- **適用ルール**: CLAUDE.md のルール表や `.claude/rules/` から、変更対象ファイルに適用されるルールを確認する。実在を確認したルールだけに従う（例: `robustness.md`、`doc-placement.md`）
 - **進め方のルール**: ファイル単位のルールに加えて、worktree・ブランチ運用・並列作業・PR フローなど、作業の進め方を定めるルールの有無もここで確認する
 
 以降、本文の **lint & test** はここで特定したコマンド群を指す。例: pnpm のプロジェクトなら `pnpm lint:fix && pnpm lint && pnpm test`、Python なら `flake8` + `pytest` など。
@@ -149,9 +149,9 @@ devtools（Chrome DevTools MCP 等）で画面を確認できる環境なら、�
 
 commit・push・PR 作成まで依頼されている場合は、プロジェクトの PR フロールールに接続する。Phase 5 のセルフレビューは内省であり、PR 前に求められる外部レビューの代替にはならない。
 
-- **push 前**: CI で実行されるチェックをローカルで全て実行する（`pre-push-verification.md` / `ci-workflow.md`）
+- **push 前**: CI で実行されるチェックをローカルで全て実行する（`ci-workflow.md`）
 - **PR 作成前**: codex review 等の外部レビューを規定回数実施し、記録する（`pr-self-review.md`。hook＝ツール実行を自動ブロックする仕組みで強制されるプロジェクトもある）
-- **PR 作成後**: CI が全て pass するまで監視する。通るまで「完了」と報告しない（`pr-workflow.md` / `pr-ci-watch.md`）
+- **PR 作成後**: CI が全て pass するまで監視する。通るまで「完了」と報告しない（`ci-workflow.md`）
 
 これらのルールがないプロジェクトでも、push 前に CI 相当のチェックをローカルで通すことだけは省略しない。
 

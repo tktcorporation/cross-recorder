@@ -1,6 +1,11 @@
 name: Labeler
 on: [pull_request]
 
+# 同じ PR への連続 push で古い実行をキャンセルする。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   label:
     runs-on: ubuntu-latest
@@ -9,4 +14,4 @@ jobs:
       pull-requests: write
 
     steps:
-      - uses: actions/labeler@v5
+      - uses: actions/labeler@v6

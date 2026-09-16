@@ -39,6 +39,16 @@ export default defineConfig({
         "effect/no-runpromise-without-catch": "off",
       },
     },
+    // tools/agent-fleet は ziku でテンプレートから同期される独立ツールで、
+    // アプリ本体より緩いルールセットを前提に書かれている
+    // (== null イディオムの使用、非 Error 値の reject を検証するテスト)。
+    {
+      files: ["tools/agent-fleet/**"],
+      rules: {
+        "no-throw-literal": "off",
+        "eqeqeq": "off",
+      },
+    },
   ],
   ignorePatterns: ["dist", "node_modules", "*.worklet.js"],
 });

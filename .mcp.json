@@ -2,9 +2,17 @@
   "mcpServers": {
     "chrome-devtools": {
       "type": "stdio",
-      "command": "bash",
-      "args": [".devcontainer/run-chrome-devtools-mcp.sh"],
+      "command": "bun",
+      "args": [".devcontainer/run-chrome-devtools-mcp.ts"],
       "env": {}
+    },
+    "lapras": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@lapras-inc/lapras-mcp-server"],
+      "env": {
+        "LAPRAS_API_KEY": "${LAPRAS_API_KEY}"
+      }
     }
   }
 }

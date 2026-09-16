@@ -323,11 +323,31 @@ if ((hasLsof && hasKill) || hasFuserKill)
   block(
     'lsof+kill / fuser+kill はdevcontainerを巻き込みます。ps aux --sort=-%mem | head でPIDを確認し、kill <PID> で個別に止めてください。',
   );
+/**
+ * `git worktree add [<options>] <path> [<commit-ish>]` の `<path>` を取り出す。
+ * `-b`/`-B` は次のトークンをブランチ名として消費するため、単純な固定位置参照
+ * （2 番目のトークン）では `-b <branch> <path>` の並びで <path> ではなく
+ * オプションやその値を拾ってしまう。
+ */
+function worktreeAddPath(args: ShellWord[]): string | undefined {
+  const VALUE_TAKING_FLAGS = new Set(['-b', '-B', '--reason']);
+  for (let i = 0; i < args.length; i++) {
+    const value = wordValue(args[i]);
+    if (value === undefined) return undefined;
+    if (value.startsWith('-')) {
+      if (VALUE_TAKING_FLAGS.has(value)) i++;
+      continue;
+    }
+    return value;
+  }
+  return undefined;
+}
+
 for (const entry of commands) {
   if (!entry.direct || entry.name !== 'git') continue;
   const target = gitTarget(entry);
   if (wordValue(target.subcommand) !== 'worktree' || wordValue(target.args[0]) !== 'add') continue;
-  const path = wordValue(target.args[1]);
+  const path = worktreeAddPath(target.args.slice(1));
   if (path === undefined || !path.startsWith('.claude/worktrees/'))
     block('worktreeは.claude/worktrees/配下に作成してください。');
 }

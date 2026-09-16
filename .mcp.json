@@ -6,13 +6,10 @@
       "args": [".devcontainer/run-chrome-devtools-mcp.ts"],
       "env": {}
     },
-    "lapras-dev": {
+    "lapras": {
       "type": "stdio",
-      "command": "node",
-      "args": [
-        "--use-system-ca",
-        "/workspaces/workspace-tkt/repo/lapras-mcp-server-internal/dist/index.js"
-      ],
+      "command": "npx",
+      "args": ["-y", "@lapras-inc/lapras-mcp-server"],
       "env": {
         "LAPRAS_API_KEY": "${LAPRAS_API_KEY}"
       }

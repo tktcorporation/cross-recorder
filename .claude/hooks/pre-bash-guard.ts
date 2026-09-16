@@ -301,6 +301,7 @@ async function foreignChanges(targets: string[] | 'all', bases: string[]): Promi
 // ---------------------------------------------------------------------------
 
 const origin = input?.cwd ?? process.cwd();
+const root = await projectDirectory();
 const parsed = parseCommands(command, origin);
 if (parsed.kind === 'parse-error') {
   const first = parsed.errors[0];
@@ -354,7 +355,16 @@ for (const entry of commands) {
   const target = gitTarget(entry);
   if (wordValue(target.subcommand) !== 'worktree' || wordValue(target.args[0]) !== 'add') continue;
   const path = worktreeAddPath(target.args.slice(1));
-  if (path === undefined || !path.startsWith('.claude/worktrees/'))
+  // <path> は git worktree add 実行時の cwd 基準（`cd src && git worktree add
+  // .claude/worktrees/x` は src/.claude/worktrees/x を作る）。引数の文字列を
+  // そのままプレフィックス比較すると、実際の作成先がリポジトリ直下の
+  // .claude/worktrees/ 配下かを見ずに通してしまう。cwd を解決できないコマンドは
+  // 安全側に倒して止める。
+  if (path === undefined || target.directory.kind === 'unknown')
+    block('worktreeは.claude/worktrees/配下に作成してください。');
+  const absolutePath = resolve(target.directory.path, path);
+  const expectedRoot = resolve(root, '.claude/worktrees');
+  if (absolutePath === expectedRoot || !isPathWithinOrEqual(expectedRoot, absolutePath))
     block('worktreeは.claude/worktrees/配下に作成してください。');
 }
 const REVERT_SUBCOMMANDS = new Set([
@@ -399,7 +409,6 @@ for (const entry of commands) {
 // 4. 付随する検査
 // ---------------------------------------------------------------------------
 
-const root = await projectDirectory();
 async function run(path: string): Promise<void> {
   // project hook は bash と bun (TypeScript) の両方で書かれているため、
   // 拡張子で実行系を選ぶ。bun 固定だと .sh は構文エラーで落ち、glob を

@@ -29,7 +29,10 @@ const protectedFiles = new Set([
 const tree = await workingTree(input);
 const rel = relative(tree, file);
 const isWithinTree = rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
-const relativePath = isWithinTree ? rel : file;
+// 下の正規表現は `/` 区切り前提。relative() は Windows では `\` を返すため、
+// 判定直前に揃える（tree 外で file をそのまま使う分岐も、Windows の絶対パスは
+// 元から `\` なので同様に正規化する）。
+const relativePath = (isWithinTree ? rel : file).replaceAll('\\', '/');
 const astGrepRule = /^(?:rules|\.ast-grep\/rules)\/[^/]+\.yml$/.test(relativePath);
 
 if (protectedFiles.has(basename) || astGrepRule) {

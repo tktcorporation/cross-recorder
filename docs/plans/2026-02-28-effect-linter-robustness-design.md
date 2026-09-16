@@ -1,3 +1,8 @@
+---
+review-by: 2026-10-16
+review-reason: ziku pull で docs-lifecycle ポリシー（ephemeral 7 日）をこのリポジトリへ新規導入したばかりで、導入前から存在する docs/plans/ 配下を未トリアージ。実装済みなら削除、設計として残すなら docs/design/ へ昇格を検討する。
+---
+
 # Effect.ts + Linter 堅牢化設計
 
 ## 目的

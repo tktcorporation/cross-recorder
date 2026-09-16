@@ -19,7 +19,12 @@
       "Edit(./*/**/.env)",
       "Edit(./*/**/.env.*)"
     ],
-    "allow": ["Bash(find:*)", "Bash(rg:*)", "Bash(grep:*)", "Bash(ls:*)"]
+    "allow": [
+      "Bash(find:*)",
+      "Bash(rg:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)"
+    ]
   },
   "enableAllProjectMcpServers": true,
   "hooks": {

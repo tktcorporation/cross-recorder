@@ -15,18 +15,15 @@
  *   pnpm agent-adapters:generate
  *   pnpm agent-adapters:check
  */
-import { spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -71,29 +68,13 @@ function writeText(path: string, content: string): void {
   writeFileSync(path, content.endsWith('\n') ? content : `${content}\n`);
 }
 
-/** oxfmt が JSON を崩すので、比較・書き込み前に同じ整形を通す */
-function formatJsonContent(pathForMessage: string, content: string): string {
-  const dir = mkdtempSync(join(tmpdir(), 'agent-adapters-fmt-'));
-  const tempPath = join(dir, 'content.json');
-  try {
-    writeFileSync(tempPath, content.endsWith('\n') ? content : `${content}\n`);
-    const result = spawnSync('pnpm', ['exec', 'vp', 'fmt', tempPath], {
-      cwd: repoRoot,
-      encoding: 'utf8',
-    });
-    if (result.status !== 0) {
-      throw new Error(
-        `vp fmt failed for ${pathForMessage}: ${result.stderr || result.stdout || 'unknown error'}`,
-      );
-    }
-    return readFileSync(tempPath, 'utf8');
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
-
+/**
+ * 生成物間で差分が出ないよう、フォーマッタに依存せず決定的な JSON 文字列を返す。
+ * `pnpm install` だけで揃う Node 組み込み機能のみで完結させ、この生成器自体を
+ * 外部ツール（vp / oxfmt 等）の有無に依存させない。
+ */
 function stableStringify(value: unknown): string {
-  return formatJsonContent('json', `${JSON.stringify(value, null, 2)}\n`);
+  return `${JSON.stringify(value, null, 2)}\n`;
 }
 
 function listFiles(dir: string, suffix: string): string[] {

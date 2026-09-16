@@ -22,12 +22,12 @@ description: |
 
 pnpm のサプライチェーン hardening が `pnpm-workspace.yaml` に設定されているリポジトリでは、更新作業中にこれらを「邪魔だから外す」のは禁止。設定されていなければ導入を検討する価値がある。
 
-| 設定 | 効果 | 作業中の意味 |
-|---|---|---|
-| `minimumReleaseAge` (cooldown) | 公開後 N 分未満の version を解決対象外にする | `pnpm add/update` が「枯れていない最新版」を勝手に掴まない。これが効くから安全に更新できる |
-| `strictDepBuilds: true` | 許可外の依存が build script を持つと install を **失敗** させる | 更新で新しい `postinstall` が紛れ込めば必ず炎上する。エラーが出たら歓迎すべきサイン |
-| `allowBuilds` | build script 実行を許可する allowlist | 更新で build エラーが出たら「なぜこの package が script を要るのか」を確認してから足す。安易に追加しない |
-| `blockExoticSubdeps` (pnpm 11 default true) | registry 外 (git / tarball) の subdep を拒否する | worm が exotic subdep として紛れ込むのを止める。エラーが出たら歓迎すべきサイン |
+| 設定                                        | 効果                                                            | 作業中の意味                                                                                             |
+| ------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `minimumReleaseAge` (cooldown)              | 公開後 N 分未満の version を解決対象外にする                    | `pnpm add/update` が「枯れていない最新版」を勝手に掴まない。これが効くから安全に更新できる               |
+| `strictDepBuilds: true`                     | 許可外の依存が build script を持つと install を **失敗** させる | 更新で新しい `postinstall` が紛れ込めば必ず炎上する。エラーが出たら歓迎すべきサイン                      |
+| `allowBuilds`                               | build script 実行を許可する allowlist                           | 更新で build エラーが出たら「なぜこの package が script を要るのか」を確認してから足す。安易に追加しない |
+| `blockExoticSubdeps` (pnpm 11 default true) | registry 外 (git / tarball) の subdep を拒否する                | worm が exotic subdep として紛れ込むのを止める。エラーが出たら歓迎すべきサイン                           |
 
 cooldown には escape hatch (`minimumReleaseAgeExclude`) があるが、常用しない（Phase 2-1）。リポジトリにこれらの設定値があるなら、必ずそちらを正として読む。
 
@@ -91,7 +91,7 @@ git diff pnpm-lock.yaml          # 何が追加/変更されたか (Rust なら 
 - **build script を持つ新規 dep が入っていないか** — `strictDepBuilds` が `[ERR_PNPM_IGNORED_BUILDS]` で止めてくれる。**止まったら「許可リストに足して通す」前に、その script が何をするか確認する。** native binary の正当なビルド (sharp / esbuild 等) でなければ疑う。
 - **registry 外 (git / tarball) の subdep が増えていないか** — `blockExoticSubdeps` が効いていればエラーで止まる。出たら歓迎すべきサイン。
 
-少しでも怪しければ更新を取り消す。`pnpm add` は対象 workspace の `package.json` も書き換えるため、lockfile だけ戻すと次の install で疑わしい version が再解決される（frozen lockfile では失敗する）。**この更新が触れたファイルだけ**を名指しで戻す — `**/package.json` のような repo 全体グロブは dirty worktree / 並列エージェント環境で無関係な workspace の編集を巻き込んで消す（[`.claude/rules/worktree.md`](../../rules/worktree.md) / [`.claude/rules/parallel-work.md`](../../rules/parallel-work.md)）。
+少しでも怪しければ更新を取り消す。`pnpm add` は対象 workspace の `package.json` も書き換えるため、lockfile だけ戻すと次の install で疑わしい version が再解決される（frozen lockfile では失敗する）。**この更新が触れたファイルだけ**を名指しで戻す — `**/package.json` のような repo 全体グロブは dirty worktree / 並列エージェント環境で無関係な workspace の編集を巻き込んで消す（[`.claude/rules/worktree.md`](../../rules/worktree.md)）。
 
 ```bash
 # --filter <ws> で更新したなら <ws>/package.json、root 更新なら ./package.json を名指しする
@@ -154,19 +154,19 @@ pnpm outdated <親package>        # 親依存に新版が出ていないか
 
 ## Phase 4: changeset (release pipeline を止めない)
 
-changeset を使うリポジトリでは、依存更新が **runtime artifact（実行時に使うライブラリ / 配布物）の挙動を変える**なら bump 付き changeset が必須。パッケージ名は `package.json` の `name` を参照する（[`.claude/rules/pr-workflow.md`](../../rules/pr-workflow.md)）。
+changeset を使うリポジトリでは、依存更新が **runtime artifact（実行時に使うライブラリ / 配布物）の挙動を変える**なら bump 付き changeset が必須。パッケージ名は `package.json` の `name` を参照する（[`.claude/rules/ci-workflow.md`](../../rules/ci-workflow.md)）。
 
 判断基準:
 
 - ランタイムに乗る依存の更新 → **bump 付き**。security fix は通常 `patch`。
-- devDependencies のみ・CI / lint / 型チェックツールだけの更新で runtime artifact が一切変わらない → changeset 不要。
+- devDependencies のみ・CI / lint / 型チェックツールだけの更新で runtime artifact が一切変わらない → **bump 無し**。全 PR に新規 changeset ファイルを要求する CI なら、frontmatter を空にしたファイルを追加して bump 無しを表明する（`ci-workflow.md` の changeset 節）。要求しない CI なら changeset 自体を省略できる。
 
 迷ったら bump 付きに倒す（release が止まる事故の方が痛い）。
 
 ## Phase 5: セルフレビュー & CI
 
 - [`.claude/rules/ci-workflow.md`](../../rules/ci-workflow.md): push 前に `.github/workflows/` の push/PR トリガーの run コマンドをローカルで通す（lint / test / knip / build）。
-- [`.claude/rules/pr-self-review.md`](../../rules/pr-self-review.md): PR 作成前にセルフレビュー 2 回。lockfile 差分・override の追加/削除・受容記録の編集は特に丁寧に見る。
+- [`.claude/rules/pr-self-review.md`](../../rules/pr-self-review.md): PR 作成前にレビューループを収束まで回す。lockfile 差分・override の追加/削除・受容記録の編集は特に丁寧に見る。
 - [`.claude/rules/codex-pairing.md`](../../rules/codex-pairing.md): push 前に `codex review` でセカンドオピニオンを取る（サンドボックスフラグ要件もここ）。
 
 ## Phase 6: 報告
@@ -176,17 +176,17 @@ changeset を使うリポジトリでは、依存更新が **runtime artifact（
 - 上げた package と version（脆弱性対応なら GHSA / RUSTSEC 番号）。
 - lockfile 差分で確認した安全性（想定外の dep 増加・新規 build script の有無）。
 - **override / 受容に対して行ったこと** — 新規に足したなら理由と外す条件、外せたなら何を返したか。「今回は触る余地が無かった」もそう書く。
-- changeset を bump 付き / 不要のどちらにしたか、その理由。
+- changeset を bump 付き / bump 無しのどちらにしたか、その理由。
 - 残した宿題（上流待ちの受容アドバイザリ等）。
 
 ## アンチパターン
 
-| やりがち | なぜダメか | 代わりに |
-|---|---|---|
-| `pnpm update` で全部最新に上げる | cooldown は効くが breaking change の山を一度に抱える / 脆弱性の優先順位が消える | 脆弱性起点で対象を絞る (Phase 1) |
-| lockfile 差分を見ずに通す | worm は新規 transitive dep として紛れ込む | `git diff pnpm-lock.yaml` を必ず読む (Phase 2-2) |
-| `strictDepBuilds` のエラーを allowlist 追加で即黙らせる | 後付け postinstall を見逃す = worm の主要伝播経路を素通り | その script が何をするか確認してから (Phase 2-2) |
-| transitive 脆弱性に脊髄反射で override | 上流が直しても残る負債。別依存と非互換を起こす | 直接依存上げ → 上流確認 → 受容、を尽くす (Phase 3-1) |
-| 既存 override / 受容を見ない | 負債が溜まる一方。外せるのに残り続ける | 毎回棚卸しして外せないか確認 (Phase 3-2) |
-| cooldown が邪魔で `minimumReleaseAgeExclude` 常用 | hardening が骨抜き。汚染版を掴むリスクが戻る | hotfix の明確な理由があるときだけ、掃除前提で (Phase 2-1) |
-| runtime 依存更新で changeset を省く | release が発火せず変更がユーザーに届かない | runtime artifact が変わるなら bump 付き (Phase 4) |
+| やりがち                                                | なぜダメか                                                                      | 代わりに                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `pnpm update` で全部最新に上げる                        | cooldown は効くが breaking change の山を一度に抱える / 脆弱性の優先順位が消える | 脆弱性起点で対象を絞る (Phase 1)                          |
+| lockfile 差分を見ずに通す                               | worm は新規 transitive dep として紛れ込む                                       | `git diff pnpm-lock.yaml` を必ず読む (Phase 2-2)          |
+| `strictDepBuilds` のエラーを allowlist 追加で即黙らせる | 後付け postinstall を見逃す = worm の主要伝播経路を素通り                       | その script が何をするか確認してから (Phase 2-2)          |
+| transitive 脆弱性に脊髄反射で override                  | 上流が直しても残る負債。別依存と非互換を起こす                                  | 直接依存上げ → 上流確認 → 受容、を尽くす (Phase 3-1)      |
+| 既存 override / 受容を見ない                            | 負債が溜まる一方。外せるのに残り続ける                                          | 毎回棚卸しして外せないか確認 (Phase 3-2)                  |
+| cooldown が邪魔で `minimumReleaseAgeExclude` 常用       | hardening が骨抜き。汚染版を掴むリスクが戻る                                    | hotfix の明確な理由があるときだけ、掃除前提で (Phase 2-1) |
+| runtime 依存更新で changeset を省く                     | release が発火せず変更がユーザーに届かない                                      | runtime artifact が変わるなら bump 付き (Phase 4)         |

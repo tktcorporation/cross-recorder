@@ -3,7 +3,6 @@ node = ["22", "24"]
 uv = "latest"
 python = "3.14"
 pnpm = "10"
-jj = "latest"
 process-compose = "latest"
 stripe-cli = "latest"
 opentofu = "latest"
@@ -15,7 +14,7 @@ direnv = "latest"
 sops = "latest"
 age = "latest"
 
-"npm:@anthropic-ai/claude-code" = "latest"
+"npm:@anthropic-ai/claude-code" = { version = "latest", npm_args = "--ignore-scripts=false --include=optional" }
 "npm:@openai/codex" = "latest"
 "npm:@google/gemini-cli" = "latest"
 

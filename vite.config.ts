@@ -8,15 +8,15 @@ export default defineConfig(({ command }) => ({
   base: "./",
   resolve: {
     alias: {
-      "@shared": path.resolve(__dirname, "src/shared"),
-      "@audio": path.resolve(__dirname, "src/mainview/audio"),
-      "@": path.resolve(__dirname, "src/mainview"),
+      "@shared": path.resolve(import.meta.dirname, "src/shared"),
+      "@audio": path.resolve(import.meta.dirname, "src/mainview/audio"),
+      "@": path.resolve(import.meta.dirname, "src/mainview"),
       // dev server 時のみ electrobun/view をモックに差し替え。
       // ブラウザでUI確認するためのもので、本番ビルドには影響しない。
       ...(command === "serve"
         ? {
             "electrobun/view": path.resolve(
-              __dirname,
+              import.meta.dirname,
               "src/mainview/__mocks__/electrobun-view.ts",
             ),
           }

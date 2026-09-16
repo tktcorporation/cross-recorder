@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { relative } from 'node:path';
+import { isAbsolute, relative, sep } from 'node:path';
 import { readInput, workingTree } from './hook-utils.ts';
 const input = await readInput();
 const file = input?.tool_input?.file_path ?? input?.tool_input?.path;
@@ -24,8 +24,12 @@ const protectedFiles = new Set([
 ]);
 // 編集中の作業ツリー（worktree を含む）を基準に相対化する。主チェックアウト基準だと
 // worktree 内の絶対パスが相対化されず、ast-grep ルールの保護をすり抜ける。
+// `path.sep` が Windows では `\` になるため、`/` 固定のプレフィックス比較ではなく
+// relative() の結果（tree 外なら `..` から始まるか絶対パスになる）で判定する。
 const tree = await workingTree(input);
-const relativePath = file.startsWith(`${tree}/`) ? relative(tree, file) : file;
+const rel = relative(tree, file);
+const isWithinTree = rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+const relativePath = isWithinTree ? rel : file;
 const astGrepRule = /^(?:rules|\.ast-grep\/rules)\/[^/]+\.yml$/.test(relativePath);
 
 if (protectedFiles.has(basename) || astGrepRule) {

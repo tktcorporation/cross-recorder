@@ -19,7 +19,7 @@
  */
 import { Glob } from 'bun';
 import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import {
   gitTarget,
   parseCommands,
@@ -258,6 +258,15 @@ function classifyTargets(targets: ShellWord[], base: string, why: string): Rever
 // ---------------------------------------------------------------------------
 
 /**
+ * `dir` 自身、または `dir` 配下のパスかどうか。`path.sep` が Windows では `\`
+ * になるため、区切り文字を固定したプレフィックス比較では取りこぼす。
+ */
+function isPathWithinOrEqual(dir: string, file: string): boolean {
+  const rel = relative(dir, file);
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+/**
  * 対象のうち、自分の変更でない未コミット変更。相対パスは解析済みの Git 作業ツリーを基準に
  * 照合する。
  */
@@ -270,10 +279,7 @@ async function foreignChanges(targets: string[] | 'all', bases: string[]): Promi
       targets === 'all'
         ? dirty
         : dirty.filter((file) =>
-            targets.some((target) => {
-              const absolute = resolve(base, target);
-              return file === absolute || file.startsWith(`${absolute}/`);
-            }),
+            targets.some((target) => isPathWithinOrEqual(resolve(base, target), file)),
           );
     for (const file of hit) {
       // 自分が最後に書いた内容のままなら自分の変更。それ以外（記録なし、編集前の候補のまま、

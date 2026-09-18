@@ -4,8 +4,8 @@ import path from "path";
 export default defineConfig({
   resolve: {
     alias: {
-      "@shared": path.resolve(__dirname, "src/shared"),
-      "@audio": path.resolve(__dirname, "src/mainview/audio"),
+      "@shared": path.resolve(import.meta.dirname, "src/shared"),
+      "@audio": path.resolve(import.meta.dirname, "src/mainview/audio"),
     },
   },
   test: {

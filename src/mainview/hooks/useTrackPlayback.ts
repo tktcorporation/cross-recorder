@@ -47,6 +47,7 @@ export function useTrackPlayback(recording: RecordingMetadata) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [audioBuffers, setAudioBuffers] = useState<AudioBuffer[]>([]);
   const [tracks, setTracks] = useState<TrackInfo[]>([]);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -107,6 +108,7 @@ export function useTrackPlayback(recording: RecordingMetadata) {
 
     const load = async () => {
       setIsLoading(true);
+      setLoadError(null);
       disposePlayback();
 
       const ctx = new AudioContext();
@@ -152,6 +154,12 @@ export function useTrackPlayback(recording: RecordingMetadata) {
 
     load().catch((err) => {
       console.error("Failed to load audio for playback:", err);
+      if (cancelled) return;
+      setLoadError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load audio for playback",
+      );
       setIsLoading(false);
     });
 
@@ -210,6 +218,7 @@ export function useTrackPlayback(recording: RecordingMetadata) {
   return {
     containerRef,
     isLoading,
+    loadError,
     isPlaying,
     currentTime,
     duration,

@@ -14,15 +14,15 @@ describe("formatClock", () => {
   });
 
   it("falls back on NaN", () => {
-    expect(formatClock(Number.NaN)).toBe("—:—");
+    expect(formatClock(Number.NaN)).toBe("—:—:—");
   });
 
   it("falls back on negative values", () => {
-    expect(formatClock(-1000)).toBe("—:—");
+    expect(formatClock(-1000)).toBe("—:—:—");
   });
 
   it("falls back on Infinity", () => {
-    expect(formatClock(Number.POSITIVE_INFINITY)).toBe("—:—");
+    expect(formatClock(Number.POSITIVE_INFINITY)).toBe("—:—:—");
   });
 });
 

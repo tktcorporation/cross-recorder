@@ -9,10 +9,11 @@
 
 const PLACEHOLDER = "—";
 const TIME_PLACEHOLDER = "—:—";
+const CLOCK_PLACEHOLDER = "—:—:—";
 
 /** ミリ秒 → "HH:MM:SS"（録音タイマー表示用、常に時・分・秒をゼロ埋め） */
 export function formatClock(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return TIME_PLACEHOLDER;
+  if (!Number.isFinite(ms) || ms < 0) return CLOCK_PLACEHOLDER;
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);

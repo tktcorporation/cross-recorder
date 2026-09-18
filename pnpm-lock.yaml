@@ -6,7 +6,6 @@ settings:
 
 overrides:
   picomatch@<2.3.2: ^2.3.2
-  ip-address: ^10.7.2
 
 importers:
 

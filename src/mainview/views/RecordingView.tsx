@@ -80,20 +80,14 @@ export function RecordingView() {
   recordButtonDisabledRef.current = recordButtonDisabled;
 
   // スペースキーで録音の開始/停止をトグルする（Voice Memos / QuickTime 等と同様）。
+  // フォーカスが body 以外（他のボタン・スイッチ・波形シーク領域など）にある間は
+  // そちらの操作を優先し、ショートカットは発火させない。
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "Space") return;
-
-      const active = document.activeElement;
-      const tagName = active instanceof HTMLElement ? active.tagName : "";
-      if (
-        tagName === "INPUT" ||
-        tagName === "TEXTAREA" ||
-        tagName === "SELECT"
-      ) {
-        return;
-      }
-
+      if (event.repeat) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (document.activeElement !== document.body) return;
       if (recordButtonDisabledRef.current) return;
 
       event.preventDefault();

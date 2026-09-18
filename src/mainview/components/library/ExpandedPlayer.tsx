@@ -181,10 +181,12 @@ export function ExpandedPlayer({ recording }: Props) {
 
     clearConfirmTimeout();
     setConfirmingDelete(false);
-    dispose();
+    // 再生周りの破棄は削除 RPC が成功してから行う。先に破棄すると、RPC が
+    // 失敗したときに録音がカードに残ったまま再生できない状態になる。
     request
       .deleteRecording({ recordingId: recording.id })
       .then(() => {
+        dispose();
         removeRecording(recording.id);
       })
       .catch((err) => {
@@ -269,7 +271,9 @@ export function ExpandedPlayer({ recording }: Props) {
               resetDeleteConfirm();
               handleExport("wav");
             }}
-            disabled={isLoading || exportingFormat !== null}
+            disabled={
+              isLoading || audioBuffers.length === 0 || exportingFormat !== null
+            }
             className="px-2 text-xs"
           >
             <DownloadIcon className="h-3.5 w-3.5" />
@@ -282,7 +286,9 @@ export function ExpandedPlayer({ recording }: Props) {
               resetDeleteConfirm();
               handleExport("mp3");
             }}
-            disabled={isLoading || exportingFormat !== null}
+            disabled={
+              isLoading || audioBuffers.length === 0 || exportingFormat !== null
+            }
             className="px-2 text-xs"
           >
             <DownloadIcon className="h-3.5 w-3.5" />

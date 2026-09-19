@@ -23,14 +23,23 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Install shell test tooling
+        run: sudo apt-get update && sudo apt-get install -y shellcheck bats
+
       - name: Lint
         run: pnpm lint
+
+      - name: Lint native shell scripts
+        run: pnpm lint:shell
 
       - name: Type check
         run: pnpm typecheck
 
       - name: Test
         run: pnpm test
+
+      - name: Test native Linux capture script
+        run: pnpm test:bats
 
       - name: Vite build
         run: pnpm build:vite

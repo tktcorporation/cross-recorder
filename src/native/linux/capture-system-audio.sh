@@ -99,6 +99,8 @@ fi
 
 # Set up signal handler for graceful shutdown
 CHILD_PID=""
+# shellcheck disable=SC2317 # trap 経由でのみ呼ばれる関数を ShellCheck は
+# 到達しないコードと誤検知するため、この関数全体で無効化する。
 cleanup() {
   if [[ -n "$CHILD_PID" ]] && kill -0 "$CHILD_PID" 2>/dev/null; then
     kill "$CHILD_PID" 2>/dev/null

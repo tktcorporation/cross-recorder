@@ -18,12 +18,14 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { NativeSystemAudioCapture } from "./NativeSystemAudioCapture.js";
 
-// process.platform === "linux" の実行環境でのみ意味を持つ（PLATFORM_CONFIGS
-// の linux エントリがバイナリ名 capture-system-audio.sh を決めるため）。
+// PLATFORM_CONFIGS の linux エントリがバイナリ名 capture-system-audio.sh を
+// 決める。ホストの process.platform が既に linux とは限らない（例: macOS
+// 開発機での `pnpm test`）ため、各テストの前後で明示的に linux へ固定する。
 const LINUX_BINARY_NAME = "capture-system-audio.sh";
 
 let tempDir: string;
 let originalCwd: string;
+let originalHostPlatform: NodeJS.Platform;
 
 beforeEach(() => {
   originalCwd = process.cwd();
@@ -31,11 +33,22 @@ beforeEach(() => {
     path.join(os.tmpdir(), "native-system-audio-capture-test-"),
   );
   process.chdir(tempDir);
+
+  originalHostPlatform = process.platform;
+  Object.defineProperty(process, "platform", {
+    value: "linux",
+    configurable: true,
+  });
 });
 
 afterEach(() => {
   process.chdir(originalCwd);
   fs.rmSync(tempDir, { recursive: true, force: true });
+
+  Object.defineProperty(process, "platform", {
+    value: originalHostPlatform,
+    configurable: true,
+  });
 });
 
 /**

@@ -64,12 +64,14 @@ function withPlatform<T>(platform: NodeJS.Platform, fn: () => T): T {
 
 describe("NativeTranscription.isAvailable", () => {
   it("is always false on non-darwin platforms, even with a binary present", () => {
-    // このテスト環境の process.platform は "linux"。isAvailable() は
-    // `process.platform === "darwin" && findBinaryPath() !== null` という
-    // 短絡評価なので、darwin 以外ではバイナリの有無を問わず false になる。
+    // isAvailable() は `process.platform === "darwin" && findBinaryPath() !== null`
+    // という短絡評価なので、darwin 以外ではバイナリの有無を問わず false になる。
+    // ホストの process.platform に頼らず明示的に linux へ固定し、macOS 開発機
+    // での `pnpm test` でも同じ結果になるようにする。
     writeStub("#!/usr/bin/env bash\nexit 0\n");
-    expect(process.platform).not.toBe("darwin");
-    expect(NativeTranscription.isAvailable()).toBe(false);
+    withPlatform("linux", () => {
+      expect(NativeTranscription.isAvailable()).toBe(false);
+    });
   });
 
   it("is true on darwin when the binary exists under build/native", () => {
@@ -127,15 +129,18 @@ describe("NativeTranscription.transcribe", () => {
     ).rejects.toThrow("speech recognition unavailable");
   });
 
-  it("returns the trimmed stdout on success", async () => {
-    // stderr を完全に空のまま終了すると、transcribe() 内の空行に対する
-    // JSON.parse("") が SyntaxError を投げ、その message がスキップ対象の
-    // 空行と一致しないため誤って再スローされる（非 JSON 行を無視する意図の
-    // catch が、EOF エラーの message 比較では機能しない）。実際のネイティブ
-    // バイナリは常に何らかのステータス行を stderr へ出す想定のため、
-    // スタブでも空でない stderr を出して同じ前提を再現する。
+  it("returns the trimmed stdout on success even when stderr is empty", async () => {
+    writeStub("#!/usr/bin/env bash\nprintf '  hello world  \\n'\nexit 0\n");
+    const result = await NativeTranscription.transcribe(
+      "/fake/audio.wav",
+      "en-US",
+    );
+    expect(result).toBe("hello world");
+  });
+
+  it("skips a non-JSON informational stderr line instead of throwing", async () => {
     writeStub(
-      "#!/usr/bin/env bash\necho '{\"status\":\"ok\"}' >&2\nprintf '  hello world  \\n'\nexit 0\n",
+      "#!/usr/bin/env bash\necho 'loading acoustic model...' >&2\nprintf 'hello world\\n'\nexit 0\n",
     );
     const result = await NativeTranscription.transcribe(
       "/fake/audio.wav",

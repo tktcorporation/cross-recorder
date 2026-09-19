@@ -11,10 +11,22 @@ SCRIPT="$BATS_TEST_DIRNAME/capture-system-audio.sh"
 setup() {
   STUB_BIN="$(mktemp -d)"
   WORK_DIR="$(mktemp -d)"
+
+  # capture-system-audio.sh 自身が使う外部コマンド（bash 自体の解決、
+  # grep、sleep。kill/wait/trap/echo/command はいずれも bash 組み込み）
+  # だけを含む隔離ディレクトリを用意する。継承した $PATH をそのまま後ろに
+  # 残すと、実行環境に本物の pw-cat/parec がインストールされていた場合に
+  # 「バックエンドが見つからない」系のテストが偽陰性になるため、テスト対象
+  # コマンドの解決を STUB_BIN と、この隔離ディレクトリだけに限定する。
+  ISOLATED_BIN="$(mktemp -d)"
+  ln -s "$(command -v bash)" "$ISOLATED_BIN/bash"
+  ln -s "$(command -v sleep)" "$ISOLATED_BIN/sleep"
+  ln -s "$(command -v grep)" "$ISOLATED_BIN/grep"
+  TEST_PATH="$STUB_BIN:$ISOLATED_BIN"
 }
 
 teardown() {
-  rm -rf "$STUB_BIN" "$WORK_DIR"
+  rm -rf "$STUB_BIN" "$WORK_DIR" "$ISOLATED_BIN"
 }
 
 # stub <name> — 標準入力で渡したスクリプト本体を STUB_BIN/<name> として
@@ -25,11 +37,11 @@ stub() {
   chmod +x "$STUB_BIN/$1"
 }
 
-# run_script <args...> — capture-system-audio.sh を偽 PATH 付きで実行し、
+# run_script <args...> — capture-system-audio.sh を隔離 PATH 付きで実行し、
 # 標準出力・標準エラーを WORK_DIR 配下のファイルへ保存する。終了コードを
 # 標準出力へ書き出すので、呼び出し側は `status=$(run_script ...)` で拾う。
 run_script() {
-  PATH="$STUB_BIN:$PATH" "$SCRIPT" "$@" \
+  PATH="$TEST_PATH" "$SCRIPT" "$@" \
     >"$WORK_DIR/stdout" 2>"$WORK_DIR/stderr"
   echo "$?"
 }
@@ -173,7 +185,7 @@ trap 'exit 0' TERM
 while true; do sleep 0.05; done
 STUB
 
-  PATH="$STUB_BIN:$PATH" "$SCRIPT" --sample-rate 48000 \
+  PATH="$TEST_PATH" "$SCRIPT" --sample-rate 48000 \
     >"$WORK_DIR/stdout" 2>"$WORK_DIR/stderr" &
   local pid=$!
 

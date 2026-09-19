@@ -14,7 +14,9 @@ pnpm build:vite      # Vite build only (fast, used for verifying changes compile
 pnpm build           # Full production build (native build + Vite + Electrobun package)
 
 pnpm test            # Vitest
+pnpm test:bats       # bats tests for src/native/linux/capture-system-audio.sh (needs bats-core)
 pnpm lint            # oxlint (config: oxlint.config.mjs)
+pnpm lint:shell      # ShellCheck for src/native/linux/*.sh and scripts/build-native.sh (needs shellcheck)
 pnpm typecheck       # tsc --noEmit
 ```
 

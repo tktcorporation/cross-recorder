@@ -234,16 +234,21 @@ export async function transcribe(
 
   await Promise.all([proc.exited, stderrPromise, stdoutPromise]);
 
-  // stderr からエラーを確認
+  // stderr からエラーを確認。JSON.parse の失敗理由メッセージには元の行
+  // 内容がそのまま埋め込まれる（例: 空文字列は "Unexpected end of JSON
+  // input"、非 JSON 行は "... "<line>" is not valid JSON"）ため、パース
+  // エラーのメッセージと行の内容を比較して非 JSON 行を判別することはできない。
+  // パースと「解析できた JSON からエラーを取り出す」処理を分け、パース失敗は
+  // 無条件でスキップする。
   for (const line of stderr.trim().split("\n")) {
+    let msg: Record<string, unknown>;
     try {
-      const msg = JSON.parse(line) as Record<string, unknown>;
-      if (typeof msg.error === "string") {
-        throw new Error(msg.error);
-      }
-    } catch (e) {
-      if (e instanceof Error && e.message !== line) throw e;
-      /* skip non-JSON lines */
+      msg = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    if (typeof msg.error === "string") {
+      throw new Error(msg.error);
     }
   }
 

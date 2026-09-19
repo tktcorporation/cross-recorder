@@ -65,12 +65,14 @@ describe("NativeTranscription.isAvailable", () => {
     });
   });
 
-  // "darwin かつバイナリ不在" のケースは isAvailable() 内部の
-  // findBinaryPath() が Bun 固有の import.meta.dir を使うプロダクションパス
-  // 探索へフォールスルーする。import.meta.dir は vitest の Vite 変換下では
-  // undefined になり path.resolve が例外を投げるため、このテスト環境では
-  // 再現できない（実 Bun ランタイムでの src/bun 実行は Vite を経由しない
-  // ため、本番では問題にならない）。
+  it("is false on darwin when no binary or Swift source exists", () => {
+    // 隔離した一時ディレクトリを cwd にしているため、
+    // tryBuildFromSource() の srcPath (src/native/macos/transcribe-audio.swift)
+    // も見つからず、swiftc は実行されない。
+    withPlatform("darwin", () => {
+      expect(NativeTranscription.isAvailable()).toBe(false);
+    });
+  });
 });
 
 describe("NativeTranscription.checkPermission", () => {

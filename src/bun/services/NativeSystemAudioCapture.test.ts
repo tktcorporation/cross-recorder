@@ -65,18 +65,14 @@ describe("NativeSystemAudioCapture.isAvailable", () => {
     expect(NativeSystemAudioCapture.isAvailable()).toBe(true);
   });
 
-  it("returns false on a platform with no capture config (no binary can exist)", () => {
-    // devPath (build/native/<binaryName>) が無いときの findBinaryPath() は、
-    // Bun 固有の import.meta.dir を使うプロダクションパスの探索へフォール
-    // スルーする。import.meta.dir は Vite の SSR 変換を経由するとこのテスト
-    // 環境では undefined になり（実 Bun ランタイムでの src/bun 実行では
-    // Vite を経由しないため問題にならない）、path.resolve が例外を投げて
-    // しまう。このテストでは未対応プラットフォームを指定して
-    // getPlatformConfig() の時点で null を返させ、その手前で isAvailable()
-    // が false になる経路だけを検証する。
+  it("returns false on a platform with no capture config", () => {
     withPlatform("win32", () => {
       expect(NativeSystemAudioCapture.isAvailable()).toBe(false);
     });
+  });
+
+  it("returns false on a supported platform when no binary exists anywhere", () => {
+    expect(NativeSystemAudioCapture.isAvailable()).toBe(false);
   });
 });
 
@@ -185,6 +181,39 @@ describe("NativeSystemAudioCapture#start", () => {
       expect(level).toBeLessThanOrEqual(1);
     }
     expect(levels[0]).toBeCloseTo(0.5, 5);
+  });
+
+  it("delivers error lines reported after startup via onError, and keeps reading after onError throws", async () => {
+    writeStub(
+      [
+        "#!/usr/bin/env bash",
+        'echo \'{"status":"started"}\' >&2',
+        "echo 'probing backend...' >&2",
+        'echo \'{"error":"first failure"}\' >&2',
+        "sleep 0.1",
+        'echo \'{"error":"second failure"}\' >&2',
+        "sleep 0.5",
+      ].join("\n"),
+    );
+
+    const errors: string[] = [];
+    const capture = new NativeSystemAudioCapture();
+    await capture.start("session-1", 48000, () => {}, undefined, (reason) => {
+      errors.push(reason);
+      // onError 自体が失敗しても（例: RPC 送信エラー）、readStderrLoop が
+      // 後続の "second failure" を配信し続けることを確認するため、
+      // わざと throw する。
+      throw new Error("onError callback itself is failing on purpose");
+    });
+
+    await vi.waitFor(
+      () => {
+        expect(errors).toEqual(["first failure", "second failure"]);
+      },
+      { timeout: 2000 },
+    );
+
+    await capture.stop();
   });
 });
 

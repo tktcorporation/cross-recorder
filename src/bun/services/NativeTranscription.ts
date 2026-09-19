@@ -37,15 +37,22 @@ function findBinaryPath(): string | null {
   const devPath = path.join(process.cwd(), "build", "native", BINARY_NAME);
   if (fs.existsSync(devPath)) return devPath;
 
-  // Production: relative to the bun entry (inside app bundle)
-  const prodPath = path.resolve(
-    import.meta.dir,
-    "..",
-    "..",
-    "native",
-    BINARY_NAME,
-  );
-  if (fs.existsSync(prodPath)) return prodPath;
+  // Production: relative to the bun entry (inside app bundle).
+  // import.meta.dir is Bun-specific and undefined outside a Bun runtime
+  // (e.g. this file transformed by Vite for a test run); path.resolve()
+  // throws on an undefined argument, so skip straight to the auto-build
+  // fallback below rather than let that throw stand in for "binary not
+  // found via this path".
+  if (import.meta.dir) {
+    const prodPath = path.resolve(
+      import.meta.dir,
+      "..",
+      "..",
+      "native",
+      BINARY_NAME,
+    );
+    if (fs.existsSync(prodPath)) return prodPath;
+  }
 
   // Development auto-build: Swift ソースからオンデマンドでコンパイルする。
   // macOS 開発環境では swiftc が Xcode Command Line Tools で利用可能。

@@ -40,4 +40,4 @@ Error handling follows `.claude/rules/error-handling.md` (Effect TS); `no-throw-
 
 ## Agent workflow
 
-`.claude/rules/` holds the behavioral rules referenced from `AGENTS.md`; `.claude/skills/` holds task skills. Both are kept in sync with a shared template via `npx ziku pull` (`.ziku/ziku.jsonc` lists the synced paths) — don't hand-edit synced files' content beyond what `template-sync-boundary.md` allows, since local edits get flagged as drift on the next pull.
+`.claude/rules/` holds the behavioral rules referenced from `AGENTS.md`; `.claude/skills/` holds task skills. Both are kept in sync with a shared template via `npx ziku pull` (`.ziku/ziku.jsonc` lists the synced paths) — don't hand-edit synced files' content beyond what `template-sync-boundary.md` allows, since local edits get flagged as drift on the next pull. `.claude/rules/project/` is this repository's own, not synced — repo-specific rules belong there instead.

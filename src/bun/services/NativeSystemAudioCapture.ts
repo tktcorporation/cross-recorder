@@ -80,7 +80,13 @@ export class NativeSystemAudioCapture {
     const devPath = path.join(process.cwd(), "build", "native", config.binaryName);
     if (fs.existsSync(devPath)) return devPath;
 
-    // Production: relative to the bun entry (inside app bundle)
+    // Production: relative to the bun entry (inside app bundle).
+    // import.meta.dir is Bun-specific and undefined outside a Bun runtime
+    // (e.g. this file transformed by Vite for a test run); path.resolve()
+    // throws on an undefined argument, so guard it explicitly rather than
+    // let that throw stand in for "binary not found".
+    if (!import.meta.dir) return null;
+
     const prodPath = path.resolve(
       import.meta.dir,
       "..",
@@ -347,7 +353,10 @@ export class NativeSystemAudioCapture {
                 // onError（RPC 送信等）の失敗をここで飲み込まずループの外
                 // まで伝播させると、以後このセッションでネイティブ側の
                 // エラーが二度と通知されなくなる。失敗は記録しつつ、
-                // 後続のメッセージ処理は継続する。
+                // 後続のメッセージ処理は継続する。fire-and-forget な
+                // バックグラウンドループで、この失敗を意味のある形で
+                // 返せる呼び出し元が存在しないため、error-handling.md
+                // 原則 5（握りつぶさない）の例外としてログ止まりにする。
                 console.error(
                   "[NativeSystemAudioCapture] onError callback failed:",
                   err,

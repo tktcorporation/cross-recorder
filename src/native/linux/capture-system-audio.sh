@@ -22,17 +22,18 @@ while [[ $# -gt 0 ]]; do
     --sample-rate)
       # 値を伴わずに渡されると `shift 2` が失敗して $# が減らず、この
       # while ループが無限に回り続ける（set -e 無しでは shift の失敗が
-      # 黙って無視されるため）。値の有無を先に確認する。
-      if [[ $# -lt 2 ]]; then
-        echo '{"error":"--sample-rate requires a value"}' >&2
+      # 黙って無視されるため）。値の有無に加え、数値であることも確認する
+      # （非数値だと後段の pw-cat/parec 呼び出しが原因不明のまま失敗する）。
+      if [[ $# -lt 2 ]] || [[ ! "$2" =~ ^[0-9]+$ ]]; then
+        echo '{"error":"--sample-rate requires a numeric value"}' >&2
         exit 1
       fi
       SAMPLE_RATE="$2"
       shift 2
       ;;
     --channels)
-      if [[ $# -lt 2 ]]; then
-        echo '{"error":"--channels requires a value"}' >&2
+      if [[ $# -lt 2 ]] || [[ ! "$2" =~ ^[0-9]+$ ]]; then
+        echo '{"error":"--channels requires a numeric value"}' >&2
         exit 1
       fi
       CHANNELS="$2"
@@ -43,7 +44,12 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
-      shift
+      # 未知のオプションを黙って無視すると、綴り違い（例: --sampleRate）が
+      # 既定値での実行にすり替わり、気づかれないまま録音設定が意図と
+      # ずれる。呼び出し元は既知のオプションしか渡さない想定なので、
+      # ここに到達したら呼び出し側の不具合として明示的に落とす。
+      echo "{\"error\":\"unknown option: $1\"}" >&2
+      exit 1
       ;;
   esac
 done

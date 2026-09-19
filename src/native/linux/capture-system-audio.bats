@@ -112,7 +112,19 @@ STUB
   status=$(timeout 3 "$SCRIPT" --sample-rate \
     >"$WORK_DIR/stdout" 2>"$WORK_DIR/stderr"; echo "$?")
   [ "$status" -eq 1 ]
-  grep -q "requires a value" "$WORK_DIR/stderr"
+  grep -q "requires a numeric value" "$WORK_DIR/stderr"
+}
+
+@test "errors out when --sample-rate is given a non-numeric value" {
+  status=$(run_script --sample-rate --channels 2)
+  [ "$status" -eq 1 ]
+  grep -q "requires a numeric value" "$WORK_DIR/stderr"
+}
+
+@test "errors out on an unknown option instead of silently ignoring it" {
+  status=$(run_script --sampleRate 48000)
+  [ "$status" -eq 1 ]
+  grep -q "unknown option" "$WORK_DIR/stderr"
 }
 
 @test "errors out when pw-cat lacks --raw support and parec is absent" {

@@ -19,9 +19,6 @@ pnpm test
 
 # 4. Vite ビルド
 pnpm build:vite
-
-# 5. エージェントアダプタの drift チェック
-pnpm agent-adapters:check
 ```
 
 プロジェクト固有の追加チェックがあれば `.claude/rules/project/` を確認する。

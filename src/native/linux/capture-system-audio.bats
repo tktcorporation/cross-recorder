@@ -11,6 +11,10 @@ SCRIPT="$BATS_TEST_DIRNAME/capture-system-audio.sh"
 setup() {
   STUB_BIN="$(mktemp -d)"
   WORK_DIR="$(mktemp -d)"
+  # スタブは capture-system-audio.sh の子プロセスとして起動されるため、
+  # 引数キャプチャ先を教えるには環境変数として export する必要がある
+  # （plain なシェル変数は子プロセスへ継承されない）。
+  export WORK_DIR
 
   # capture-system-audio.sh 自身が使う外部コマンド（bash 自体の解決、
   # grep、sleep。kill/wait/trap/echo/command はいずれも bash 組み込み）
@@ -56,6 +60,7 @@ if [[ "$1" == "--help" ]]; then
   echo "Usage: pw-cat [options] --raw ..."
   exit 0
 fi
+printf '%s\n' "$@" >"$WORK_DIR/pw-cat-args"
 printf '\x01\x02\x03\x04'
 sleep 0.5
 STUB
@@ -65,6 +70,39 @@ STUB
   grep -q '"status":"started"' "$WORK_DIR/stderr"
   grep -q '"status":"stopped"' "$WORK_DIR/stderr"
   [ "$(wc -c <"$WORK_DIR/stdout")" -eq 4 ]
+
+  # 引数の組み立てが壊れても他のアサーションは緑のままになりうるため、
+  # pw-cat へ実際に渡った引数を行単位で検証する。-P の値は空白を含む
+  # 1 引数として渡る想定なので、grep -x（行完全一致）で分割されていない
+  # ことも確認する。
+  grep -qx -- "--record" "$WORK_DIR/pw-cat-args"
+  grep -qx -- "--format=s16" "$WORK_DIR/pw-cat-args"
+  grep -qx -- "--rate=48000" "$WORK_DIR/pw-cat-args"
+  grep -qx -- "--channels=2" "$WORK_DIR/pw-cat-args"
+  grep -qx -- "-P" "$WORK_DIR/pw-cat-args"
+  grep -qx -- "{ stream.capture.sink=true }" "$WORK_DIR/pw-cat-args"
+  grep -qx -- "--raw" "$WORK_DIR/pw-cat-args"
+}
+
+@test "streams raw PCM via the pulseaudio backend when pw-cat is absent" {
+  stub parec <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >"$WORK_DIR/parec-args"
+printf '\xaa\xbb'
+sleep 0.5
+STUB
+
+  status=$(run_script --sample-rate 44100 --channels 1)
+  [ "$status" -eq 0 ]
+  grep -q '"status":"started"' "$WORK_DIR/stderr"
+  grep -q '"status":"stopped"' "$WORK_DIR/stderr"
+  [ "$(wc -c <"$WORK_DIR/stdout")" -eq 2 ]
+
+  grep -qx -- "--format=s16le" "$WORK_DIR/parec-args"
+  grep -qx -- "--rate=44100" "$WORK_DIR/parec-args"
+  grep -qx -- "--channels=1" "$WORK_DIR/parec-args"
+  grep -qx -- "--device=@DEFAULT_MONITOR@" "$WORK_DIR/parec-args"
+  grep -qx -- "--raw" "$WORK_DIR/parec-args"
 }
 
 @test "errors out when pw-cat lacks --raw support and parec is absent" {
@@ -100,6 +138,25 @@ exit 0
 STUB
   stub pw-cli <<'STUB'
 #!/usr/bin/env bash
+exit 0
+STUB
+
+  status=$(run_script --check)
+  [ "$status" -eq 0 ]
+  grep -q '"check":"ok"' "$WORK_DIR/stderr"
+}
+
+@test "--check on the pipewire backend reports ok when pw-cli is absent (lenient fallback)" {
+  # pw-cli が別パッケージに分かれているディストリビューションでは未導入の
+  # ことがあるため、capture-system-audio.sh は pw-cli 不在時にデーモン
+  # 到達性を確認せず pw-cat の存在だけで ok を返す（capture-system-audio.sh
+  # のコメント参照）。この分岐を明示的に検証する。
+  stub pw-cat <<'STUB'
+#!/usr/bin/env bash
+if [[ "$1" == "--help" ]]; then
+  echo "supports --raw"
+  exit 0
+fi
 exit 0
 STUB
 

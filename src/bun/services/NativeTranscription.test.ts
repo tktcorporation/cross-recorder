@@ -19,6 +19,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as NativeTranscription from "./NativeTranscription.js";
+import { withPlatform } from "./testHelpers/platformMock.js";
 
 const BINARY_NAME = "transcribe-audio";
 
@@ -43,23 +44,6 @@ function writeStub(script: string): void {
   const binDir = path.join(tempDir, "build", "native");
   fs.mkdirSync(binDir, { recursive: true });
   fs.writeFileSync(path.join(binDir, BINARY_NAME), script, { mode: 0o755 });
-}
-
-/** platform を一時的に差し替え、テスト後に必ず元へ戻す。 */
-function withPlatform<T>(platform: NodeJS.Platform, fn: () => T): T {
-  const original = process.platform;
-  Object.defineProperty(process, "platform", {
-    value: platform,
-    configurable: true,
-  });
-  try {
-    return fn();
-  } finally {
-    Object.defineProperty(process, "platform", {
-      value: original,
-      configurable: true,
-    });
-  }
 }
 
 describe("NativeTranscription.isAvailable", () => {

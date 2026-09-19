@@ -2,10 +2,11 @@
 //
 // NativeSystemAudioCapture の全パブリック API は内部で Bun.spawn を使い、
 // 実サブプロセスの stdout/stderr を JSON 行プロトコルで解釈する。モックでは
-// この解釈ロジック（行分割・非 JSON 行のスキップ・stdin/stdout の相関）を
-// 検証できないため、ここでは実行可能なスタブスクリプトをプラットフォーム用
-// バイナリの探索パス（build/native/capture-system-audio.sh）に配置し、
-// 実サブプロセスとして起動して確認する。
+// この解釈ロジック（行分割・非 JSON 行のスキップ・プロセス終了と
+// SIGTERM/SIGKILL の挙動）を検証できないため、ここでは実行可能なスタブ
+// スクリプトをプラットフォーム用バイナリの探索パス
+// （build/native/capture-system-audio.sh）に配置し、実サブプロセスとして
+// 起動して確認する。
 //
 // findBinaryPath() は process.cwd() を基準にバイナリを探す private static
 // メソッドなので、直接は呼べない。各テストは process.chdir() で隔離した
@@ -17,6 +18,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { NativeSystemAudioCapture } from "./NativeSystemAudioCapture.js";
+import { pinPlatform, restorePlatform, withPlatform } from "./testHelpers/platformMock.js";
 
 // PLATFORM_CONFIGS の linux エントリがバイナリ名 capture-system-audio.sh を
 // 決める。ホストの process.platform が既に linux とは限らない（例: macOS
@@ -34,21 +36,14 @@ beforeEach(() => {
   );
   process.chdir(tempDir);
 
-  originalHostPlatform = process.platform;
-  Object.defineProperty(process, "platform", {
-    value: "linux",
-    configurable: true,
-  });
+  originalHostPlatform = pinPlatform("linux");
 });
 
 afterEach(() => {
   process.chdir(originalCwd);
   fs.rmSync(tempDir, { recursive: true, force: true });
 
-  Object.defineProperty(process, "platform", {
-    value: originalHostPlatform,
-    configurable: true,
-  });
+  restorePlatform(originalHostPlatform);
 });
 
 /**
@@ -79,19 +74,9 @@ describe("NativeSystemAudioCapture.isAvailable", () => {
     // しまう。このテストでは未対応プラットフォームを指定して
     // getPlatformConfig() の時点で null を返させ、その手前で isAvailable()
     // が false になる経路だけを検証する。
-    const originalPlatform = process.platform;
-    Object.defineProperty(process, "platform", {
-      value: "win32",
-      configurable: true,
-    });
-    try {
+    withPlatform("win32", () => {
       expect(NativeSystemAudioCapture.isAvailable()).toBe(false);
-    } finally {
-      Object.defineProperty(process, "platform", {
-        value: originalPlatform,
-        configurable: true,
-      });
-    }
+    });
   });
 });
 
@@ -227,10 +212,12 @@ describe("NativeSystemAudioCapture#stop", () => {
   });
 
   it("falls back to SIGKILL after the internal 3s timeout when SIGTERM is ignored", async () => {
+    const pidFile = path.join(tempDir, "child.pid");
     writeStub(
       [
         "#!/usr/bin/env bash",
         "trap '' TERM",
+        `echo $$ > "${pidFile}"`,
         'echo \'{"status":"started"}\' >&2',
         "while true; do sleep 0.05; done",
       ].join("\n"),
@@ -238,6 +225,7 @@ describe("NativeSystemAudioCapture#stop", () => {
 
     const capture = new NativeSystemAudioCapture();
     await capture.start("session-1", 48000, () => {});
+    const childPid = Number(fs.readFileSync(pidFile, "utf8").trim());
 
     const startedAt = Date.now();
     await capture.stop();
@@ -247,5 +235,19 @@ describe("NativeSystemAudioCapture#stop", () => {
     // (3000ms) を経由してから SIGKILL にフォールバックする。この所要時間
     // をもって SIGKILL 経路を通ったことの証拠とする。
     expect(elapsedMs).toBeGreaterThanOrEqual(2900);
+
+    // 経過時間だけでは「タイムアウトを待っただけ」でも green になるため、
+    // process.kill(pid, 0) でシグナルを送らず存在確認だけ行い、SIGKILL が
+    // 実際にプロセスへ届いて消滅したことも確認する（対象が無ければ ESRCH）。
+    // stop() は SIGKILL 送信後にプロセスの終了を待たずに返るため、シグナルが
+    // 反映され OS がプロセステーブルから取り除くまでには短い猶予がありうる。
+    await vi.waitFor(
+      () => {
+        expect(() => process.kill(childPid, 0)).toThrow(
+          expect.objectContaining({ code: "ESRCH" }),
+        );
+      },
+      { timeout: 1000 },
+    );
   }, 8000);
 });

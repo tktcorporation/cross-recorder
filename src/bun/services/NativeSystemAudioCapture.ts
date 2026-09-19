@@ -334,13 +334,18 @@ export class NativeSystemAudioCapture {
             buffer = buffer.slice(newlineIdx + 1);
 
             if (!line) continue;
+            let msg: Record<string, unknown>;
             try {
-              const msg = JSON.parse(line) as Record<string, unknown>;
-              if (typeof msg.error === "string") {
-                this.capture?.onError?.(msg.error as string);
-              }
+              msg = JSON.parse(line) as Record<string, unknown>;
             } catch {
-              /* skip non-JSON lines */
+              continue; // skip non-JSON lines
+            }
+            // onError は RPC 送信等の呼び出し元コールバックで、ここで
+            // 投げうる例外は JSON.parse の失敗とは無関係。同じ try に
+            // 入れると「非 JSON 行のスキップ」の catch が onError の失敗を
+            // 一緒に握りつぶしてしまうため、parse と分離する。
+            if (typeof msg.error === "string") {
+              this.capture?.onError?.(msg.error as string);
             }
           }
         }

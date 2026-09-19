@@ -21,7 +21,7 @@
     "test": "bun run --bun vitest run",
     "test:watch": "bun run --bun vitest",
     "test:bats": "bats src/native/linux/capture-system-audio.bats",
-    "lint:shell": "shellcheck src/native/linux/capture-system-audio.sh scripts/build-native.sh",
+    "lint:shell": "shellcheck src/native/linux/*.sh scripts/build-native.sh",
     "format": "oxlint --fix",
     "agent-adapters:generate": "bun scripts/generate-agent-adapters.ts",
     "agent-adapters:check": "bun scripts/generate-agent-adapters.ts --check",

@@ -234,21 +234,24 @@ export async function transcribe(
 
   await Promise.all([proc.exited, stderrPromise, stdoutPromise]);
 
-  // stderr からエラーを確認。JSON.parse の失敗理由メッセージには元の行
-  // 内容がそのまま埋め込まれる（例: 空文字列は "Unexpected end of JSON
-  // input"、非 JSON 行は "... "<line>" is not valid JSON"）ため、パース
-  // エラーのメッセージと行の内容を比較して非 JSON 行を判別することはできない。
-  // パースと「解析できた JSON からエラーを取り出す」処理を分け、パース失敗は
-  // 無条件でスキップする。
-  for (const line of stderr.trim().split("\n")) {
-    let msg: Record<string, unknown>;
+  // stderr からエラーを確認。ネイティブバイナリは非 JSON の情報ログも
+  // stderr に書きうるため、パース失敗行は無条件でスキップする。
+  for (const rawLine of stderr.trim().split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    let msg: unknown;
     try {
-      msg = JSON.parse(line) as Record<string, unknown>;
+      msg = JSON.parse(line);
     } catch {
       continue;
     }
-    if (typeof msg.error === "string") {
-      throw new Error(msg.error);
+    if (
+      typeof msg === "object" &&
+      msg !== null &&
+      typeof (msg as Record<string, unknown>).error === "string"
+    ) {
+      throw new Error((msg as Record<string, unknown>).error as string);
     }
   }
 

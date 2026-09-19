@@ -11,23 +11,20 @@ CI ワークフロー (`ci.yml`) の全ステップに対応:
 # 1. lint
 pnpm lint
 
-# 1b. src/native/linux/*.sh の ShellCheck
-pnpm lint:shell
-
 # 2. 型チェック
 pnpm typecheck
 
 # 3. テスト
 pnpm test
 
-# 3b. capture-system-audio.sh の bats テスト
-pnpm test:bats
-
 # 4. Vite ビルド
 pnpm build:vite
+
+# 5. エージェントアダプタの drift チェック
+pnpm agent-adapters:check
 ```
 
-`pnpm lint:shell` は shellcheck、`pnpm test:bats` は bats-core が必要（未導入なら `apt-get install -y shellcheck bats`。CI（`ci.yml`）も同じコマンドで導入する）。
+プロジェクト固有の追加チェックがあれば `.claude/rules/project/` を確認する。
 
 ## Changeset チェック
 

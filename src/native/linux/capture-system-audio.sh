@@ -20,10 +20,21 @@ CHECK_ONLY=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --sample-rate)
+      # 値を伴わずに渡されると `shift 2` が失敗して $# が減らず、この
+      # while ループが無限に回り続ける（set -e 無しでは shift の失敗が
+      # 黙って無視されるため）。値の有無を先に確認する。
+      if [[ $# -lt 2 ]]; then
+        echo '{"error":"--sample-rate requires a value"}' >&2
+        exit 1
+      fi
       SAMPLE_RATE="$2"
       shift 2
       ;;
     --channels)
+      if [[ $# -lt 2 ]]; then
+        echo '{"error":"--channels requires a value"}' >&2
+        exit 1
+      fi
       CHANNELS="$2"
       shift 2
       ;;

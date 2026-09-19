@@ -105,6 +105,16 @@ STUB
   grep -qx -- "--raw" "$WORK_DIR/parec-args"
 }
 
+@test "errors out instead of hanging when --sample-rate is given without a value" {
+  # 値の有無を確認せず shift 2 していた頃は、$# が減らないまま while
+  # ループが無限に回り続けた（回帰時に CI がハングしないよう timeout で
+  # 上限を設ける）。
+  status=$(timeout 3 "$SCRIPT" --sample-rate \
+    >"$WORK_DIR/stdout" 2>"$WORK_DIR/stderr"; echo "$?")
+  [ "$status" -eq 1 ]
+  grep -q "requires a value" "$WORK_DIR/stderr"
+}
+
 @test "errors out when pw-cat lacks --raw support and parec is absent" {
   stub pw-cat <<'STUB'
 #!/usr/bin/env bash

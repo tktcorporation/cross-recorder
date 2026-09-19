@@ -340,12 +340,19 @@ export class NativeSystemAudioCapture {
             } catch {
               continue; // skip non-JSON lines
             }
-            // onError は RPC 送信等の呼び出し元コールバックで、ここで
-            // 投げうる例外は JSON.parse の失敗とは無関係。同じ try に
-            // 入れると「非 JSON 行のスキップ」の catch が onError の失敗を
-            // 一緒に握りつぶしてしまうため、parse と分離する。
             if (typeof msg.error === "string") {
-              this.capture?.onError?.(msg.error as string);
+              try {
+                this.capture?.onError?.(msg.error as string);
+              } catch (err) {
+                // onError（RPC 送信等）の失敗をここで飲み込まずループの外
+                // まで伝播させると、以後このセッションでネイティブ側の
+                // エラーが二度と通知されなくなる。失敗は記録しつつ、
+                // 後続のメッセージ処理は継続する。
+                console.error(
+                  "[NativeSystemAudioCapture] onError callback failed:",
+                  err,
+                );
+              }
             }
           }
         }

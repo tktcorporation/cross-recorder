@@ -133,6 +133,17 @@ describe("NativeTranscription.transcribe", () => {
     expect(result).toBe("hello world");
   });
 
+  it("reports the exit code when the binary fails without a JSON error line", async () => {
+    // 非 JSON 行は無条件でスキップされるため、stderr が非 JSON のみで
+    // 終了コードが非ゼロの場合に到達するのはこの分岐だけになる。
+    writeStub(
+      "#!/usr/bin/env bash\necho 'unexpected crash' >&2\nexit 3\n",
+    );
+    await expect(
+      NativeTranscription.transcribe("/fake/audio.wav", "en-US"),
+    ).rejects.toThrow(/exit code: 3/);
+  });
+
   it("converts an ISO 639-1 language code to BCP 47 before invoking the binary", async () => {
     // toBcp47() は非 export のため、スタブが受け取った argv をそのまま
     // stdout へ返すことで間接的に変換結果を確認する。

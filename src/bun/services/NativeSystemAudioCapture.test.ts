@@ -27,7 +27,7 @@ const LINUX_BINARY_NAME = "capture-system-audio.sh";
 
 let tempDir: string;
 let originalCwd: string;
-let originalHostPlatform: NodeJS.Platform;
+let originalHostPlatform: PropertyDescriptor;
 
 beforeEach(() => {
   originalCwd = process.cwd();

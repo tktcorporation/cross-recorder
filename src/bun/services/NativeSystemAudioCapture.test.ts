@@ -215,6 +215,40 @@ describe("NativeSystemAudioCapture#start", () => {
 
     await capture.stop();
   });
+
+  it("keeps reading after a stderr line that parses to a non-object JSON value", async () => {
+    // JSON.parse("null") は成功して null を返す。msg.error への素朴な
+    // アクセスはその場合に投げ、対策前は外側の catch がループごと終了させて
+    // いたため、後続のエラー行が届かなくなっていた。
+    writeStub(
+      [
+        "#!/usr/bin/env bash",
+        'echo \'{"status":"started"}\' >&2',
+        "echo 'null' >&2",
+        'echo \'{"error":"reported after a null line"}\' >&2',
+        "sleep 0.5",
+      ].join("\n"),
+    );
+
+    const errors: string[] = [];
+    const capture = new NativeSystemAudioCapture();
+    await capture.start(
+      "session-1",
+      48000,
+      () => {},
+      undefined,
+      (reason) => errors.push(reason),
+    );
+
+    await vi.waitFor(
+      () => {
+        expect(errors).toEqual(["reported after a null line"]);
+      },
+      { timeout: 2000 },
+    );
+
+    await capture.stop();
+  });
 });
 
 describe("NativeSystemAudioCapture#stop", () => {

@@ -326,44 +326,60 @@ export class NativeSystemAudioCapture {
   ): void {
     let buffer = initialBuffer;
 
+    // readNextMessage() が最初のメッセージを切り出した残りを initialBuffer
+    // として渡してくる。1 回の reader.read() で複数行がまとめて届くと、
+    // その残りには 2 行目以降がすでに含まれていることがある。この関数を
+    // reader.read() の前に一度呼ばずにいると、その分の行はストリームが
+    // 追加データ無しで閉じた場合（後続の read() が done:true を返して
+    // ループを抜ける場合）に処理されないまま失われる。
+    const processBufferedLines = (): void => {
+      let newlineIdx: number;
+      while ((newlineIdx = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, newlineIdx).trim();
+        buffer = buffer.slice(newlineIdx + 1);
+
+        if (!line) continue;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue; // skip non-JSON lines
+        }
+        // JSON.parse は "null" のような非オブジェクトの有効な JSON も
+        // 受理する。msg.error への素朴なアクセスはその場合に投げ、
+        // 外側の catch がループごと終了させてしまうため、オブジェクト
+        // であることを確認してからプロパティへアクセスする。
+        if (typeof parsed !== "object" || parsed === null) continue;
+        const msg = parsed as Record<string, unknown>;
+        if (typeof msg.error === "string") {
+          try {
+            this.capture?.onError?.(msg.error as string);
+          } catch (err) {
+            // onError（RPC 送信等）の失敗をここで飲み込まずループの外
+            // まで伝播させると、以後このセッションでネイティブ側の
+            // エラーが二度と通知されなくなる。失敗は記録しつつ、
+            // 後続のメッセージ処理は継続する。fire-and-forget な
+            // バックグラウンドループで、この失敗を意味のある形で
+            // 返せる呼び出し元が存在しないため、error-handling.md
+            // 原則 5（握りつぶさない）の例外としてログ止まりにする。
+            console.error(
+              "[NativeSystemAudioCapture] onError callback failed:",
+              err,
+            );
+          }
+        }
+      }
+    };
+
     void (async () => {
       try {
+        processBufferedLines();
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-
-          let newlineIdx: number;
-          while ((newlineIdx = buffer.indexOf("\n")) >= 0) {
-            const line = buffer.slice(0, newlineIdx).trim();
-            buffer = buffer.slice(newlineIdx + 1);
-
-            if (!line) continue;
-            let msg: Record<string, unknown>;
-            try {
-              msg = JSON.parse(line) as Record<string, unknown>;
-            } catch {
-              continue; // skip non-JSON lines
-            }
-            if (typeof msg.error === "string") {
-              try {
-                this.capture?.onError?.(msg.error as string);
-              } catch (err) {
-                // onError（RPC 送信等）の失敗をここで飲み込まずループの外
-                // まで伝播させると、以後このセッションでネイティブ側の
-                // エラーが二度と通知されなくなる。失敗は記録しつつ、
-                // 後続のメッセージ処理は継続する。fire-and-forget な
-                // バックグラウンドループで、この失敗を意味のある形で
-                // 返せる呼び出し元が存在しないため、error-handling.md
-                // 原則 5（握りつぶさない）の例外としてログ止まりにする。
-                console.error(
-                  "[NativeSystemAudioCapture] onError callback failed:",
-                  err,
-                );
-              }
-            }
-          }
+          processBufferedLines();
         }
       } catch {
         /* stream closed */

@@ -37,15 +37,22 @@ function findBinaryPath(): string | null {
   const devPath = path.join(process.cwd(), "build", "native", BINARY_NAME);
   if (fs.existsSync(devPath)) return devPath;
 
-  // Production: relative to the bun entry (inside app bundle)
-  const prodPath = path.resolve(
-    import.meta.dir,
-    "..",
-    "..",
-    "native",
-    BINARY_NAME,
-  );
-  if (fs.existsSync(prodPath)) return prodPath;
+  // Production: relative to the bun entry (inside app bundle).
+  // import.meta.dir is Bun-specific and undefined outside a Bun runtime
+  // (e.g. this file transformed by Vite for a test run); path.resolve()
+  // throws on an undefined argument, so skip straight to the auto-build
+  // fallback below rather than let that throw stand in for "binary not
+  // found via this path".
+  if (import.meta.dir) {
+    const prodPath = path.resolve(
+      import.meta.dir,
+      "..",
+      "..",
+      "native",
+      BINARY_NAME,
+    );
+    if (fs.existsSync(prodPath)) return prodPath;
+  }
 
   // Development auto-build: Swift ソースからオンデマンドでコンパイルする。
   // macOS 開発環境では swiftc が Xcode Command Line Tools で利用可能。
@@ -234,16 +241,24 @@ export async function transcribe(
 
   await Promise.all([proc.exited, stderrPromise, stdoutPromise]);
 
-  // stderr からエラーを確認
-  for (const line of stderr.trim().split("\n")) {
+  // stderr からエラーを確認。ネイティブバイナリは非 JSON の情報ログも
+  // stderr に書きうるため、パース失敗行は無条件でスキップする。
+  for (const rawLine of stderr.trim().split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    let msg: unknown;
     try {
-      const msg = JSON.parse(line) as Record<string, unknown>;
-      if (typeof msg.error === "string") {
-        throw new Error(msg.error);
-      }
-    } catch (e) {
-      if (e instanceof Error && e.message !== line) throw e;
-      /* skip non-JSON lines */
+      msg = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (
+      typeof msg === "object" &&
+      msg !== null &&
+      typeof (msg as Record<string, unknown>).error === "string"
+    ) {
+      throw new Error((msg as Record<string, unknown>).error as string);
     }
   }
 

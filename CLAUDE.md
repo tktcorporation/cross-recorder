@@ -13,8 +13,10 @@ pnpm dev:hmr         # Vite HMR + Electrobun (concurrent)
 pnpm build:vite      # Vite build only (fast, used for verifying changes compile)
 pnpm build           # Full production build (native build + Vite + Electrobun package)
 
-pnpm test            # Vitest
+pnpm test            # Vitest, run under Bun (needed for the Bun.spawn-based native service tests)
+pnpm test:bats       # bats tests for src/native/linux/capture-system-audio.sh (needs bats-core)
 pnpm lint            # oxlint (config: oxlint.config.mjs)
+pnpm lint:shell      # ShellCheck for src/native/linux/*.sh and scripts/build-native.sh (needs shellcheck)
 pnpm typecheck       # tsc --noEmit
 ```
 
@@ -38,4 +40,4 @@ Error handling follows `.claude/rules/error-handling.md` (Effect TS); `no-throw-
 
 ## Agent workflow
 
-`.claude/rules/` holds the behavioral rules referenced from `AGENTS.md`; `.claude/skills/` holds task skills. Both are kept in sync with a shared template via `npx ziku pull` (`.ziku/ziku.jsonc` lists the synced paths) — don't hand-edit synced files' content beyond what `template-sync-boundary.md` allows, since local edits get flagged as drift on the next pull.
+`.claude/rules/` holds the behavioral rules referenced from `AGENTS.md`; `.claude/skills/` holds task skills. Both are kept in sync with a shared template via `npx ziku pull` (`.ziku/ziku.jsonc` lists the synced paths) — don't hand-edit synced files' content beyond what `template-sync-boundary.md` allows, since local edits get flagged as drift on the next pull. `.claude/rules/project/` is this repository's own, not synced — repo-specific rules belong there instead.

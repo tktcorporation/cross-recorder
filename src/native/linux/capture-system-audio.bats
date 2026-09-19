@@ -116,6 +116,12 @@ STUB
 }
 
 @test "errors out when --sample-rate is given a non-numeric value" {
+  status=$(run_script --sample-rate abc)
+  [ "$status" -eq 1 ]
+  grep -q "requires a numeric value" "$WORK_DIR/stderr"
+}
+
+@test "errors out when --sample-rate consumes the next option as its value" {
   status=$(run_script --sample-rate --channels 2)
   [ "$status" -eq 1 ]
   grep -q "requires a numeric value" "$WORK_DIR/stderr"

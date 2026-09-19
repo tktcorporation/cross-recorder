@@ -5,7 +5,7 @@
 
 ## CI と対応するローカルコマンド
 
-CI ワークフロー (`ci.yml`) の全ステップに対応:
+CI ワークフロー (`ci.yml`) の共通ステップに対応（プロジェクト固有のステップは `.claude/rules/project/` 側にある）:
 
 ```bash
 # 1. lint
@@ -20,8 +20,6 @@ pnpm test
 # 4. Vite ビルド
 pnpm build:vite
 ```
-
-プロジェクト固有の追加チェックがあれば `.claude/rules/project/` を確認する。
 
 ## Changeset チェック
 

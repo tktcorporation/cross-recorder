@@ -3,7 +3,7 @@
 `.claude/rules/pre-push-checks.md` の CI 対応コマンド一覧に加えて、このリポジトリでは次も push 前に実行する。
 
 ```bash
-# src/native/linux/*.sh (scripts/build-native.sh を含む) の ShellCheck
+# src/native/linux/*.sh と scripts/build-native.sh の ShellCheck
 pnpm lint:shell
 
 # capture-system-audio.sh の bats テスト

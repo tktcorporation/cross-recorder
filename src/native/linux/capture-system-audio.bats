@@ -133,6 +133,12 @@ STUB
   grep -q "unknown option" "$WORK_DIR/stderr"
 }
 
+@test "escapes special characters in an unknown option before embedding it in the error JSON" {
+  status=$(run_script '--foo"bar')
+  [ "$status" -eq 1 ]
+  bun -e "JSON.parse(require('fs').readFileSync('$WORK_DIR/stderr', 'utf8').trim())"
+}
+
 @test "errors out when pw-cat lacks --raw support and parec is absent" {
   stub pw-cat <<'STUB'
 #!/usr/bin/env bash

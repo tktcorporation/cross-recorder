@@ -118,7 +118,7 @@ export const meta = {
   phases: [{ title: 'Context' }, { title: 'Review' }, { title: 'Verify' }],
 };
 
-// args: { target: 'git diff origin/main...HEAD の説明 or PR番号', intent: 'イシュー/PRの狙い(基準線)' }
+// args: { target: 'git diff origin/<default-branch>...HEAD の説明 or PR番号', intent: 'イシュー/PRの狙い(基準線)' }
 
 phase('Context');
 const context = await agent(
@@ -128,6 +128,7 @@ const context = await agent(
     `3. 対応するテストファイルの有無と内容\n` +
     `4. 変更した値が下流のどのモジュールで使われるか\n` +
     `生ファイル内容の丸ごと引用はせず、パスと要点だけ返すこと。`,
+  { phase: 'Context', model: 'sonnet' },
 );
 
 const LENSES = [
@@ -183,9 +184,12 @@ phase('Review');
 const reviewed = await pipeline(
   LENSES,
   (l) =>
-    agent(l.prompt, { label: `review:${l.key}`, phase: 'Review', schema: FINDINGS_SCHEMA }).then(
-      (r) => ({ lens: l.key, findings: r?.findings ?? [] }),
-    ),
+    agent(l.prompt, {
+      label: `review:${l.key}`,
+      phase: 'Review',
+      model: 'sonnet',
+      schema: FINDINGS_SCHEMA,
+    }).then((r) => ({ lens: l.key, findings: r?.findings ?? [] })),
   // pipeline/parallel の内側では、グローバルな phase('Verify') ではなく
   // 呼び出しごとの opts.phase で 'Verify' グループに割り当てる
   // (レンズごとに並列で進むため、グローバル phase() の呼び出し順に依存できない)
@@ -195,6 +199,10 @@ const reviewed = await pipeline(
         (f) => () =>
           agent(
             `この指摘を敵対的に検証せよ。実際に該当ファイルを開いて裏付けを取ること。裏付けが取れなければ REFUTED。\n指摘: ${JSON.stringify(f)}`,
+            // 複数票の多数決ではなく1指摘につき1エージェントが単独で CONFIRMED / PLAUSIBLE / REFUTED を決める
+            // 最終ジャッジなので、model を省略してメインセッションのモデルの継承を狙う
+            // (subagent-model-policy.md の敵対的検証の最終ジャッジに該当する例外)。
+            // 実際に動くモデルは /tasks で確認する。
             { label: `verify:${f.file}`, phase: 'Verify', schema: VERDICT_SCHEMA },
           ).then((v) => ({ ...f, lens: r.lens, verdict: v?.verdict, verdictReason: v?.reason })),
       ),

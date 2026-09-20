@@ -43,10 +43,12 @@ pr-deep-review（本スキル）→  「この実装は仕様通りで、技術�
 gh pr view <PR番号> --json title,body,files,baseRefName,headRefName
 gh pr diff <PR番号>
 
-# ローカルブランチ / 未コミット
-git fetch origin main
-git diff origin/main...HEAD --stat
-git diff origin/main...HEAD
+# ローカルブランチ / 未コミット (default branch 名は repo により main / master 等で異なるため origin/HEAD から動的に取得する)
+# origin/HEAD が未設定なら一度だけ: git remote set-head origin --auto
+default_branch="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's@^origin/@@')"
+git fetch origin "$default_branch"
+git diff "origin/$default_branch"...HEAD --stat
+git diff "origin/$default_branch"...HEAD
 
 # 関連イシューがあれば本文も取る（Step 2 の基準線になる）
 gh issue view <イシュー番号> --json title,body

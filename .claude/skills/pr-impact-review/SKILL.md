@@ -40,10 +40,12 @@ pr-impact-review（本スキル）  →  「これをユーザーに出して良
 gh pr view <PR番号> --json title,body,files,baseRefName,headRefName
 gh pr diff <PR番号>
 
-# ローカルブランチ / 未コミット
-git fetch origin main
-git diff origin/main...HEAD --stat   # まず俯瞰
-git diff origin/main...HEAD
+# ローカルブランチ / 未コミット (default branch 名は repo により main / master 等で異なるため origin/HEAD から動的に取得する)
+# origin/HEAD が未設定なら一度だけ: git remote set-head origin --auto
+default_branch="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's@^origin/@@')"
+git fetch origin "$default_branch"
+git diff "origin/$default_branch"...HEAD --stat   # まず俯瞰
+git diff "origin/$default_branch"...HEAD
 
 # patch ファイル / 差分テキストで渡された場合はそのまま読む
 

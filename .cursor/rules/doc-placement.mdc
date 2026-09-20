@@ -1,5 +1,5 @@
 ---
-description: "ドキュメントの置き場所 — コード近接を優先する — from .claude/rules/doc-placement.md"
+description: "ドキュメントの置き場所（コード近接を優先する） — from .claude/rules/doc-placement.md"
 globs: "**/*.md, **/*.mdx, docs/**, .config/docs-lifecycle.json"
 alwaysApply: false
 ---

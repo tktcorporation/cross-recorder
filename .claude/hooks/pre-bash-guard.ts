@@ -438,5 +438,6 @@ async function run(path: string): Promise<void> {
   if (status !== 0) process.exit(status);
 }
 if (isPrCreateCommand(command)) await run('.claude/hooks/require-pr-self-review.ts');
-for await (const path of new Glob('.claude/hooks/project/*.{ts,sh}').scan({ cwd: root }))
+// `.claude/` 配下を辿るため dot: true が必要（Bun Glob は既定で dotdir をスキップする）
+for await (const path of new Glob('.claude/hooks/project/*.{ts,sh}').scan({ cwd: root, dot: true }))
   await run(path);

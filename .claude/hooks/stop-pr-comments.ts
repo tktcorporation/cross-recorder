@@ -124,11 +124,9 @@ for (;;) {
   after = page.pageInfo.endCursor ?? null;
   if (!after) break;
 }
-// GitHub 上で isResolved になっていないスレッドはすべて対応待ち。「最後の発言が自分」を
-// 免除条件に含めない: 返信しただけで resolve を呼び忘れた場合も isResolved は false の
-// ままなので、そのまま対応待ちとして拾う（この hook の目的そのものである「返信と resolve
-// の両方を済ませたか」を確かめられなくなる）。同じ状態を毎ターン繰り返し報告しないための
-// 重複排除は、直後の nagged（スレッド id + 最新コメント id）が担う。
+// 未解決のスレッドはすべて対応待ち。返信しただけで resolve し忘れたスレッドも、
+// 直近コメントの著者に関わらずここに含める（対応完了の条件は返信 + resolve の両方で、
+// 返信だけでは足りない）。同じ状態を繰り返し知らせないための抑制は nagged 側が担う。
 const waiting = threads.filter((thread) => !thread.isResolved);
 if (waiting.length === 0) process.exit(0);
 

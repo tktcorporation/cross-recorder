@@ -63,10 +63,8 @@ const { number, url } = view;
 if (!number) process.exit(0);
 
 const repo = await $`gh repo view --json nameWithOwner --jq .nameWithOwner`.quiet().nothrow();
-const me = await $`gh api user --jq .login`.quiet().nothrow();
-if (repo.exitCode !== 0 || me.exitCode !== 0) process.exit(0);
+if (repo.exitCode !== 0) process.exit(0);
 const [owner, name] = repo.text().trim().split('/');
-const login = me.text().trim();
 
 interface Thread {
   id: string;
@@ -126,10 +124,10 @@ for (;;) {
   after = page.pageInfo.endCursor ?? null;
   if (!after) break;
 }
-// 未解決で、最後の発言が自分ではないスレッドだけが対応待ち
-const waiting = threads.filter(
-  (thread) => !thread.isResolved && thread.comments.nodes[0]?.author?.login !== login,
-);
+// 未解決のスレッドはすべて対応待ち。返信しただけで resolve し忘れたスレッドも、
+// 直近コメントの著者に関わらずここに含める（対応完了の条件は返信 + resolve の両方で、
+// 返信だけでは足りない）。同じ状態を繰り返し知らせないための抑制は nagged 側が担う。
+const waiting = threads.filter((thread) => !thread.isResolved);
 if (waiting.length === 0) process.exit(0);
 
 const naggedPath = directory

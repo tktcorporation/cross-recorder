@@ -68,6 +68,7 @@ const repo = await $`gh repo view --json nameWithOwner --jq .nameWithOwner`.cwd(
 const me = await $`gh api user --jq .login`.quiet().nothrow();
 if (repo.exitCode !== 0 || me.exitCode !== 0) process.exit(0);
 const [owner, name] = repo.text().trim().split('/');
+const login = me.text().trim();
 
 interface Thread {
   id: string;
@@ -133,11 +134,10 @@ for (;;) {
   after = page.pageInfo.endCursor ?? null;
   if (!after) break;
 }
-// 未解決のスレッドはすべて対応待ち。返信しただけで resolve し忘れたスレッドも、
-// 直近コメントの著者に関わらずここに含める（対応完了の条件は返信 + resolve の両方で、
-// 返信だけでは足りない）。同じ状態を繰り返し知らせないための抑制は nagged 側が担う。
-const waiting = threads.filter((thread) => !thread.isResolved);
-if (waiting.length === 0) process.exit(0);
+// 未解決で、最後の発言が自分ではないスレッドだけが対応待ち
+const waiting = threads.filter(
+  (thread) => !thread.isResolved && thread.comments.nodes[0]?.author?.login !== login,
+);
 
 const naggedPath = directory
   ? join(directory, `${input?.session_id ?? 'unknown'}.pr-nagged`)
@@ -157,17 +157,22 @@ const nagged = new Set(
 // 付けば再び知らせる
 const stateOf = (thread: Thread) => `${thread.id}:${thread.comments.nodes[0]?.databaseId ?? ''}`;
 const fresh = waiting.filter((thread) => !nagged.has(stateOf(thread)));
-if (fresh.length === 0) process.exit(0);
-// 観測できないときは通知済みにせず、次の Stop で再試行する。
+// レビュー本文だけの CHANGES_REQUESTED にも未解決スレッドは存在しない。
+// スレッドの有無に関係なく GitHub のレビューを観測してから通知を判定する。
 const observed = await refreshFeedback(input);
 if (observed.kind !== 'found') {
+  if (fresh.length === 0) process.exit(0);
   console.log(JSON.stringify({ decision: 'block', reason:
     `PR #${number} の指摘を履歴に記録できませんでした。bun .claude/hooks/observe-pr-feedback.ts を再実行し、成功を確認してからレビューを始めてください。` }));
   process.exit(0);
 }
+const freshReviews = observed.history.seenComments
+  .slice(observed.history.reviewedCommentCount)
+  .filter((id) => id.startsWith('review:') && !nagged.has(id));
+if (fresh.length === 0 && freshReviews.length === 0) process.exit(0);
 if (naggedPath) {
   await mkdir(dirname(naggedPath), { recursive: true }).catch(() => undefined);
-  await Bun.write(naggedPath, `${[...nagged, ...fresh.map(stateOf)].join('\n')}\n`).catch(
+  await Bun.write(naggedPath, `${[...nagged, ...fresh.map(stateOf), ...freshReviews].join('\n')}\n`).catch(
     () => undefined,
   );
 }
@@ -179,11 +184,14 @@ const summary = fresh
     return `- ${thread.path}:${thread.line ?? '-'} (${first?.author?.login ?? '?'}): ${head}`;
   })
   .join('\n');
+const reviewSummary = freshReviews.length > 0
+  ? `\n- 変更要求レビュー本文 ${freshReviews.length} 件。gh pr view ${number} --json reviews で本文を確認してください。`
+  : '';
 const guidance =
   '指摘を読み始めるときは bun .claude/hooks/observe-pr-feedback.ts で観測を記録してください。個別の指摘だけを直して push せず、.claude/skills/pr-review-loop/SKILL.md の手順で差分全体を再レビューし、収束させてから push してください。外部指摘が異なる HEAD に 3 回続いた場合は .claude/rules/ci-workflow.md の診断と方針相談を行ってください。';
 console.log(
   JSON.stringify({
     decision: 'block',
-    reason: `🛑 Stop hook: PR #${number}（${url}）に未対応のレビュースレッドが ${fresh.length} 件あります。${guidance} コメントごとに「修正 / 直さない理由 / 回答」を判断し、対応したスレッドを resolve してください。\n${summary}`,
+    reason: `🛑 Stop hook: PR #${number}（${url}）に未対応のレビュースレッドが ${fresh.length} 件、未確認の変更要求レビュー本文が ${freshReviews.length} 件あります。${guidance} コメントごとに「修正 / 直さない理由 / 回答」を判断し、対応したスレッドを resolve してください。\n${summary}${reviewSummary}`,
   }),
 );

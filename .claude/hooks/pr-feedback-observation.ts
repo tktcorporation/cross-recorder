@@ -11,7 +11,7 @@ import type { Round } from './review-policy.ts';
 export type ObservedFeedback =
   | { kind: 'no_pr' }
   | { kind: 'unavailable'; reason: string }
-  | { kind: 'found'; history: ExternalReviewHistory; rounds: Round[]; path: string };
+  | { kind: 'found'; history: ExternalReviewHistory; rounds: Round[]; path: string; remoteHead: string };
 
 /** GitHub の指摘を同じ境界で履歴へ反映する。指摘を読んだ直後に呼べばレビューの基準線になる。 */
 export async function refreshFeedback(input?: { cwd?: string } | null): Promise<ObservedFeedback> {
@@ -29,5 +29,5 @@ export async function refreshFeedback(input?: { cwd?: string } | null): Promise<
     await mkdir(dirname(path), { recursive: true });
     await Bun.write(path, JSON.stringify(history));
   }
-  return { kind: 'found', history, rounds, path };
+  return { kind: 'found', history, rounds, path, remoteHead: feedback.remoteHead };
 }

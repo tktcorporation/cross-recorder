@@ -65,6 +65,7 @@ test('push は最新の指摘後に現在の HEAD で収束した場合だけ通
   expect(judgeExternalPush(history, [...rounds, rounds[1]], 'a')).toBe('review_locally');
   expect(judgeExternalPush(history, [...rounds, rounds[0], rounds[1]], 'a')).toBe('allow');
   expect(judgeExternalPush(markFeedbackReviewed(history), [...rounds, rounds[0], rounds[1]], 'new-sha')).toBe('review_locally');
+  expect(judgeExternalPush(markFeedbackReviewed(history), [...rounds, rounds[0], rounds[1]], 'new-sha', true)).toBe('allow');
   const third = observe(observe(history, 'b', 'two', 3), 'c', 'three', 3);
   expect(judgeExternalPush(third, rounds, 'a')).toBe('consult_user');
 });

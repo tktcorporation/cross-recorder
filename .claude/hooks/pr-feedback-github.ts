@@ -5,7 +5,7 @@ import type { FeedbackObservation } from './pr-feedback-policy.ts';
 export type GitHubFeedback =
   | { kind: 'no_pr' }
   | { kind: 'unavailable'; reason: string }
-  | { kind: 'found'; pr: number; observations: Omit<FeedbackObservation, 'roundsAtFeedback'>[] };
+  | { kind: 'found'; pr: number; remoteHead: string; observations: Omit<FeedbackObservation, 'roundsAtFeedback'>[] };
 
 interface ReviewComment {
   id: number;
@@ -61,13 +61,13 @@ async function fetchPages(tree: string, endpoint: string): Promise<unknown[] | n
 }
 
 export async function fetchGitHubFeedback(tree: string): Promise<GitHubFeedback> {
-  const pr = await $`gh pr view --json number`.cwd(tree).quiet().nothrow();
+  const pr = await $`gh pr view --json number,headRefOid`.cwd(tree).quiet().nothrow();
   if (pr.exitCode !== 0) {
     return pr.stderr.toString().includes('no pull requests found for branch')
       ? { kind: 'no_pr' }
       : { kind: 'unavailable', reason: '現在の PR を確認できませんでした' };
   }
-  let view: { number?: number };
+  let view: { number?: number; headRefOid?: string };
   try {
     view = pr.json();
   } catch {
@@ -106,5 +106,5 @@ export async function fetchGitHubFeedback(tree: string): Promise<GitHubFeedback>
         commentIds: [`review:${review.id}`] })),
   ].sort((a, b) => a.at.localeCompare(b.at) || a.id - b.id)
     .map(({ head, commentIds }) => ({ head, commentIds }));
-  return { kind: 'found', pr: number, observations };
+  return { kind: 'found', pr: number, remoteHead: view.headRefOid ?? '', observations };
 }

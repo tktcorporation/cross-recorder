@@ -17,9 +17,9 @@
  * ままであるものに限る（track-edits.ts が記録）。
  * 自分が書いていない差分はユーザーか別プロセスの作業なので、消す判断はエージェントがしない。
  */
-import { $, Glob } from 'bun';
+import { Glob } from 'bun';
 import { existsSync } from 'node:fs';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
   gitTarget,
   parseCommands,
@@ -258,15 +258,6 @@ function classifyTargets(targets: ShellWord[], base: string, why: string): Rever
 // ---------------------------------------------------------------------------
 
 /**
- * `dir` 自身、または `dir` 配下のパスかどうか。`path.sep` が Windows では `\`
- * になるため、区切り文字を固定したプレフィックス比較では取りこぼす。
- */
-function isPathWithinOrEqual(dir: string, file: string): boolean {
-  const rel = relative(dir, file);
-  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
-}
-
-/**
  * 対象のうち、自分の変更でない未コミット変更。相対パスは解析済みの Git 作業ツリーを基準に
  * 照合する。
  */
@@ -279,7 +270,10 @@ async function foreignChanges(targets: string[] | 'all', bases: string[]): Promi
       targets === 'all'
         ? dirty
         : dirty.filter((file) =>
-            targets.some((target) => isPathWithinOrEqual(resolve(base, target), file)),
+            targets.some((target) => {
+              const absolute = resolve(base, target);
+              return file === absolute || file.startsWith(`${absolute}/`);
+            }),
           );
     for (const file of hit) {
       // 自分が最後に書いた内容のままなら自分の変更。それ以外（記録なし、編集前の候補のまま、
@@ -301,7 +295,6 @@ async function foreignChanges(targets: string[] | 'all', bases: string[]): Promi
 // ---------------------------------------------------------------------------
 
 const origin = input?.cwd ?? process.cwd();
-const root = await projectDirectory();
 const parsed = parseCommands(command, origin);
 if (parsed.kind === 'parse-error') {
   const first = parsed.errors[0];
@@ -330,52 +323,12 @@ if ((hasLsof && hasKill) || hasFuserKill)
   block(
     'lsof+kill / fuser+kill はdevcontainerを巻き込みます。ps aux --sort=-%mem | head でPIDを確認し、kill <PID> で個別に止めてください。',
   );
-/**
- * `git worktree add [<options>] <path> [<commit-ish>]` の `<path>` を取り出す。
- * `-b`/`-B` は次のトークンをブランチ名として消費するため、単純な固定位置参照
- * （2 番目のトークン）では `-b <branch> <path>` の並びで <path> ではなく
- * オプションやその値を拾ってしまう。
- */
-function worktreeAddPath(args: ShellWord[]): string | undefined {
-  const VALUE_TAKING_FLAGS = new Set(['-b', '-B', '--reason']);
-  for (let i = 0; i < args.length; i++) {
-    const value = wordValue(args[i]);
-    if (value === undefined) return undefined;
-    if (value.startsWith('-')) {
-      if (VALUE_TAKING_FLAGS.has(value)) i++;
-      continue;
-    }
-    return value;
-  }
-  return undefined;
-}
-
-/** `git -C <dir> ...` で選ばれたリポジトリ（サブモジュールを含む）のトップレベル。 */
-async function repoTopLevel(dir: string): Promise<string> {
-  const result = await $`git -C ${dir} rev-parse --show-toplevel`.quiet().nothrow();
-  return result.exitCode === 0 ? result.text().trim() : dir;
-}
-
 for (const entry of commands) {
   if (!entry.direct || entry.name !== 'git') continue;
   const target = gitTarget(entry);
   if (wordValue(target.subcommand) !== 'worktree' || wordValue(target.args[0]) !== 'add') continue;
-  const path = worktreeAddPath(target.args.slice(1));
-  // <path> は git worktree add 実行時の cwd 基準（`cd src && git worktree add
-  // .claude/worktrees/x` は src/.claude/worktrees/x を作る）。引数の文字列を
-  // そのままプレフィックス比較すると、実際の作成先がリポジトリ直下の
-  // .claude/worktrees/ 配下かを見ずに通してしまう。cwd を解決できないコマンドは
-  // 安全側に倒して止める。
-  if (path === undefined || target.directory.kind === 'unknown')
-    block('worktreeは.claude/worktrees/配下に作成してください。');
-  // 期待する .claude/worktrees はセッション起点のプロジェクトルート（`root`）固定では
-  // なく、このコマンドが対象とするリポジトリ（`git -C <submodule>` 等）のトップレベル
-  // を都度解決する。固定した root と比較すると、サブモジュール配下での正当な
-  // `git -C submodule worktree add .claude/worktrees/x` まで誤ってブロックしてしまう。
-  const commandRoot = await repoTopLevel(target.directory.path);
-  const absolutePath = resolve(target.directory.path, path);
-  const expectedRoot = resolve(commandRoot, '.claude/worktrees');
-  if (absolutePath === expectedRoot || !isPathWithinOrEqual(expectedRoot, absolutePath))
+  const path = wordValue(target.args[1]);
+  if (path === undefined || !path.startsWith('.claude/worktrees/'))
     block('worktreeは.claude/worktrees/配下に作成してください。');
 }
 const REVERT_SUBCOMMANDS = new Set([
@@ -420,6 +373,7 @@ for (const entry of commands) {
 // 4. 付随する検査
 // ---------------------------------------------------------------------------
 
+const root = await projectDirectory();
 async function run(path: string, cwd?: string): Promise<void> {
   // project hook は bash と bun (TypeScript) の両方で書かれているため、
   // 拡張子で実行系を選ぶ。bun 固定だと .sh は構文エラーで落ち、glob を
@@ -438,14 +392,26 @@ async function run(path: string, cwd?: string): Promise<void> {
   if (status !== 0) process.exit(status);
 }
 if (isPrCreateCommand(command)) await run('.claude/hooks/require-pr-self-review.ts');
+// PreToolUse はシェル全体の実行前に一度だけ動く。先行コマンドが HEAD を変えると、
+// この時点で検査した SHA と実際に push される SHA が異なる。
+const HEAD_MUTATIONS = new Set([
+  'commit', 'merge', 'rebase', 'cherry-pick', 'revert', 'reset', 'checkout', 'switch',
+  'pull', 'am', 'apply', 'stash',
+]);
+let pendingCommit = false;
 for (const entry of commands) {
   if (!entry.direct || entry.name !== 'git') continue;
   const target = gitTarget(entry);
-  if (wordValue(target.subcommand) !== 'push') continue;
+  const subcommand = wordValue(target.subcommand);
+  if (subcommand === 'add' || subcommand === 'rm' || subcommand === 'mv' ||
+      HEAD_MUTATIONS.has(subcommand ?? '')) pendingCommit = true;
+  if (subcommand !== 'push') continue;
+  if (pendingCommit)
+    block('同じ Bash コマンド内で git add/commit 等の後に push すると、push 前に確定した HEAD をレビューできません。変更・commit を先に実行し、git push を別の Bash コマンドで実行してください。');
   if (target.directory.kind === 'known')
     await run('.claude/hooks/require-pr-feedback-review.ts', target.directory.path);
   else
     console.error('NOTICE: git push の作業ツリーを特定できません。LLM が送信先 PR のレビュー指摘を確認してください。');
 }
-for await (const path of new Glob('.claude/hooks/project/*.{ts,sh}').scan({ cwd: root, dot: true }))
+for await (const path of new Glob('.claude/hooks/project/*.{ts,sh}').scan({ cwd: root }))
   await run(path);

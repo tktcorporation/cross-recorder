@@ -88,6 +88,26 @@ describe('外部指摘後の push ガード', () => {
     }
   });
 
+  test('同じ Bash 内の commit と push は古い HEAD の事前検査を使わせない', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'pr-feedback-compound-'));
+    try {
+      git(cwd, 'init', '-q');
+      const child = Bun.spawn(['bun', preBash], {
+        cwd,
+        env: { ...process.env, CLAUDE_PROJECT_DIR: join(import.meta.dir, '../..') },
+        stdin: new Blob([JSON.stringify({ cwd, tool_input: {
+          command: 'git add README && git commit -m fix && git push',
+        } })]),
+        stdout: 'pipe', stderr: 'pipe',
+      });
+      const [code, error] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+      expect(code).toBe(2);
+      expect(error).toContain('git push を別の Bash コマンド');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   test('指摘後のレビュー収束と、3 回目のユーザー判断を要求する', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'pr-feedback-'));
     try {

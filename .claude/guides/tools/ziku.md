@@ -22,6 +22,7 @@
 | `npx ziku status`          | ローカルとテンプレートの差分を表示                                         |
 | `npx ziku pull`            | テンプレート側の更新を取り込む（auto-merge / コンフリクト解決あり）        |
 | `npx ziku push`            | track 済みファイルをテンプレートリポジトリへ反映（テンプレ側に PR が立つ） |
+| `npx ziku aggregate`       | このテンプレートを利用するリポジトリの未同期差分を一覧化（読み取り専用）   |
 
 ## 落とし穴
 
@@ -42,6 +43,12 @@ npx ziku pull
 # ローカルの変更をテンプレへ反映（PR が立つ）
 npx ziku push
 ```
+
+## 利用先の改善をテンプレートへ取り込む
+
+テンプレートリポジトリで `npx ziku aggregate --out=/tmp/ziku-aggregate.json` を実行し、報告された `pendingPush` と `conflicts` の実ファイルを利用先のリポジトリで確認する。集計は読み取り専用で、差分の採用や同期は行わない。既定では最近更新された候補を一部だけ調べるため、必要なら `--recent-days` と `--max-candidates` を指定する。
+
+`localOnly` は「テンプレートへそのままコピーしてよい」という意味ではない。テンプレートの現行版と利用先の内容を比較し、共通の動作だけをここで実装・検証する。特に `.claude/skills/` と `.claude/rules/` は、利用先固有の運用やホスト名が混ざっていないか確認する（`.claude/rules/template-sync-boundary.md`）。
 
 ## push の落とし穴（--files の厳密絞り・偽 conflict 回避）
 

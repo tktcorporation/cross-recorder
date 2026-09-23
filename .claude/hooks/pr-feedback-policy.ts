@@ -92,11 +92,13 @@ export function judgeExternalPush(
   history: ExternalReviewHistory,
   rounds: Round[],
   currentSha: string,
+  reviewedHeadPublished = false,
 ): PushVerdict {
   if (needsUserDecision(history)) return 'consult_user';
-  // push 失敗後に HEAD が変わった場合、以前の通過記録で新しい差分を通さない。
+  // 成功した push の後は通常の追加コミットを再レビュー対象にしない。
+  // push 失敗後に HEAD が変わった場合は、未公開の通過記録を流用しない。
   if (history.reviewedCommentCount >= history.seenComments.length &&
-      rounds.at(-1)?.sha === currentSha) return 'allow';
+      (rounds.at(-1)?.sha === currentSha || reviewedHeadPublished)) return 'allow';
   const baseline = Math.max(
     history.roundsAtLastFeedback,
     history.consultation.kind === 'answered' ? history.consultation.roundsAtConsultation : 0,

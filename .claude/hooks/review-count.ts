@@ -31,6 +31,10 @@ export async function reviewCountFile(input?: { cwd?: string } | null): Promise<
     : join(await projectDirectory(), '.claude', 'pr-review');
   return join(base, `${branch}.rounds`);
 }
+/** PR 作成後、外部から指摘を受けた HEAD とユーザー判断の記録。 */
+export async function externalReviewFile(input?: { cwd?: string } | null): Promise<string> {
+  return `${await reviewCountFile(input)}.external`;
+}
 /** 記録を古い順に返す。記録形式は review-policy.ts が定める。 */
 export async function readEntries(input?: { cwd?: string } | null): Promise<Entry[]> {
   const file = Bun.file(await reviewCountFile(input));

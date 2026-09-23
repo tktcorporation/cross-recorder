@@ -17,7 +17,8 @@
 import { $ } from 'bun';
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { readInput, sessionStateDir } from './hook-utils.ts';
+import { readInput, sessionStateDir, workingTree } from './hook-utils.ts';
+import { refreshFeedback } from './pr-feedback-observation.ts';
 
 const THROTTLE_MS = 45_000;
 
@@ -38,6 +39,7 @@ function safeShellJson<T>(output: $.ShellOutput, fallback: T): T {
 
 const input = await readInput();
 if (input?.stop_hook_active) process.exit(0);
+const tree = await workingTree(input);
 
 const directory = await sessionStateDir();
 const throttlePath = directory
@@ -56,14 +58,15 @@ if (throttlePath) {
   await Bun.write(throttlePath, String(now)).catch(() => undefined);
 }
 
-const pr = await $`gh pr view --json number,url`.quiet().nothrow();
+const pr = await $`gh pr view --json number,url`.cwd(tree).quiet().nothrow();
 if (pr.exitCode !== 0) process.exit(0);
 const view = safeShellJson<{ number?: number; url?: string }>(pr, {});
 const { number, url } = view;
 if (!number) process.exit(0);
 
-const repo = await $`gh repo view --json nameWithOwner --jq .nameWithOwner`.quiet().nothrow();
-if (repo.exitCode !== 0) process.exit(0);
+const repo = await $`gh repo view --json nameWithOwner --jq .nameWithOwner`.cwd(tree).quiet().nothrow();
+const me = await $`gh api user --jq .login`.quiet().nothrow();
+if (repo.exitCode !== 0 || me.exitCode !== 0) process.exit(0);
 const [owner, name] = repo.text().trim().split('/');
 
 interface Thread {
@@ -71,7 +74,13 @@ interface Thread {
   isResolved: boolean;
   path: string;
   line: number | null;
-  comments: { nodes: { databaseId: number; author: { login: string } | null; body: string }[] };
+  comments: {
+    nodes: {
+      databaseId: number;
+      author: { login: string } | null;
+      body: string;
+    }[];
+  };
   firstComment: { nodes: { author: { login: string } | null; body: string }[] };
 }
 interface Payload {
@@ -115,7 +124,7 @@ for (;;) {
     `number=${number}`,
   ];
   if (after) args.push('-f', `after=${after}`);
-  const result = await $`gh ${args}`.quiet().nothrow();
+  const result = await $`gh ${args}`.cwd(tree).quiet().nothrow();
   if (result.exitCode !== 0) process.exit(0);
   const payload = safeShellJson<Payload | null>(result, null);
   const page = payload?.data?.repository?.pullRequest?.reviewThreads;
@@ -149,6 +158,13 @@ const nagged = new Set(
 const stateOf = (thread: Thread) => `${thread.id}:${thread.comments.nodes[0]?.databaseId ?? ''}`;
 const fresh = waiting.filter((thread) => !nagged.has(stateOf(thread)));
 if (fresh.length === 0) process.exit(0);
+// 観測できないときは通知済みにせず、次の Stop で再試行する。
+const observed = await refreshFeedback(input);
+if (observed.kind !== 'found') {
+  console.log(JSON.stringify({ decision: 'block', reason:
+    `PR #${number} の指摘を履歴に記録できませんでした。bun .claude/hooks/observe-pr-feedback.ts を再実行し、成功を確認してからレビューを始めてください。` }));
+  process.exit(0);
+}
 if (naggedPath) {
   await mkdir(dirname(naggedPath), { recursive: true }).catch(() => undefined);
   await Bun.write(naggedPath, `${[...nagged, ...fresh.map(stateOf)].join('\n')}\n`).catch(
@@ -163,9 +179,11 @@ const summary = fresh
     return `- ${thread.path}:${thread.line ?? '-'} (${first?.author?.login ?? '?'}): ${head}`;
   })
   .join('\n');
+const guidance =
+  '指摘を読み始めるときは bun .claude/hooks/observe-pr-feedback.ts で観測を記録してください。個別の指摘だけを直して push せず、.claude/skills/pr-review-loop/SKILL.md の手順で差分全体を再レビューし、収束させてから push してください。外部指摘が異なる HEAD に 3 回続いた場合は .claude/rules/ci-workflow.md の診断と方針相談を行ってください。';
 console.log(
   JSON.stringify({
     decision: 'block',
-    reason: `🛑 Stop hook: PR #${number}（${url}）に未対応のレビュースレッドが ${fresh.length} 件あります。完了報告の前に pr-comments スキルの手順で「修正 / 直さない理由 / 回答」のどれかにして返信と resolve まで済ませてください。後回しにするなら、その旨と理由をユーザーへの報告に書いてください。\n${summary}`,
+    reason: `🛑 Stop hook: PR #${number}（${url}）に未対応のレビュースレッドが ${fresh.length} 件あります。${guidance} コメントごとに「修正 / 直さない理由 / 回答」を判断し、対応したスレッドを resolve してください。\n${summary}`,
   }),
 );

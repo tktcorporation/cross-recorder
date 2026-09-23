@@ -180,8 +180,8 @@ export const LONG_REVIEW_ROUNDS = CHECKPOINT_INTERVAL * 2;
 /** 診断メモの最小文字数。指摘の分類・構造的原因・他の解決策の検討を 1 文は書かせる。 */
 export const MIN_NOTE_LENGTH = 30;
 
-/** 振り返りでユーザーへの確認（asked）が必須になる理由。 */
-export type AskReason = { kind: 'stalled' } | { kind: 'long'; totalRounds: number };
+/** 通常の続行を止めて、再計画またはユーザー確認が必要になる理由。 */
+export type CheckpointReason = { kind: 'stalled' } | { kind: 'long'; totalRounds: number };
 
 interface Progress {
   /** 直近の振り返り以降のラウンドの指摘件数。 */
@@ -190,8 +190,8 @@ interface Progress {
   totalRounds: number;
 }
 export type ClearState = Progress & { status: 'clear' };
-/** 振り返りが済むまで、収束しないラウンドを記録できない。ask が null なら確認は任意。 */
-export type DueState = Progress & { status: 'due'; ask: AskReason | null };
+/** 振り返りが済むまで、収束しないラウンドを記録できない。 */
+export type DueState = Progress & { status: 'due'; reason: CheckpointReason | null };
 export type CheckpointState = ClearState | DueState;
 
 /** 直近の窓で、最後の件数が窓内の最良値を更新していない。最後が 0 件か accepted なら停滞ではない。 */
@@ -207,12 +207,14 @@ export function checkpointState(entries: Entry[]): CheckpointState {
   const counts = window.map((round) => round.count);
   const totalRounds = roundsOf(entries).length;
   if (window.length < CHECKPOINT_INTERVAL) return { status: 'clear', counts, totalRounds };
-  const ask: AskReason | null = isStalled(window.slice(-CHECKPOINT_INTERVAL))
-    ? { kind: 'stalled' }
-    : totalRounds >= LONG_REVIEW_ROUNDS
+  // 長期化したレビューは、件数が停滞しているかに関係なくユーザーの判断を要する。
+  const reason: CheckpointReason | null =
+    totalRounds >= LONG_REVIEW_ROUNDS
       ? { kind: 'long', totalRounds }
-      : null;
-  return { status: 'due', counts, totalRounds, ask };
+      : isStalled(window.slice(-CHECKPOINT_INTERVAL))
+        ? { kind: 'stalled' }
+        : null;
+  return { status: 'due', counts, totalRounds, reason };
 }
 
 // ---- 判定 -----------------------------------------------------------------
@@ -241,7 +243,7 @@ export function judgeRound(entries: Entry[], round: Round): RoundVerdict {
 
 export type CheckpointRejection =
   | { kind: 'not_due'; counts: number[] }
-  | { kind: 'must_ask'; reason: AskReason; counts: number[] }
+  | { kind: 'must_ask'; reason: CheckpointReason; counts: number[] }
   | { kind: 'note_too_short' };
 export type CheckpointVerdict =
   | { kind: 'accept'; entries: Entry[] }
@@ -257,10 +259,10 @@ export function judgeCheckpoint(
   if (state.status === 'clear') {
     return { kind: 'reject', rejection: { kind: 'not_due', counts: state.counts } };
   }
-  if (state.ask !== null && decision !== ASKED) {
+  if (state.reason !== null && decision !== ASKED) {
     return {
       kind: 'reject',
-      rejection: { kind: 'must_ask', reason: state.ask, counts: state.counts },
+      rejection: { kind: 'must_ask', reason: state.reason, counts: state.counts },
     };
   }
   const text = normalizeNote(note);

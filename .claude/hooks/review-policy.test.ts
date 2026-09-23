@@ -36,21 +36,21 @@ describe('checkpointState', () => {
     expect(checkpointState(rounds(5, 8)).status).toBe('clear');
   });
 
-  test('件数が最良値を更新していなければ停滞と判定し、確認を必須にする', () => {
+  test('件数が最良値を更新していなければ停滞と判定する', () => {
     expect(checkpointState(rounds(5, 8, 6))).toMatchObject({
       status: 'due',
-      ask: { kind: 'stalled' },
+      reason: { kind: 'stalled' },
     });
-    expect(checkpointState(rounds(3, 2, 2))).toMatchObject({ ask: { kind: 'stalled' } });
+    expect(checkpointState(rounds(3, 2, 2))).toMatchObject({ reason: { kind: 'stalled' } });
   });
 
   test('件数が下がり続けていれば、確認は必須にならない', () => {
-    expect(checkpointState(rounds(8, 6, 4))).toMatchObject({ status: 'due', ask: null });
+    expect(checkpointState(rounds(8, 6, 4))).toMatchObject({ status: 'due', reason: null });
   });
 
   test('停滞は直近の窓だけで判定する。窓より前の最良値は見ない', () => {
-    expect(checkpointState(rounds(1, 9, 7, 5))).toMatchObject({ status: 'due', ask: null });
-    expect(checkpointState(rounds(1, 9, 7, 8))).toMatchObject({ ask: { kind: 'stalled' } });
+    expect(checkpointState(rounds(1, 9, 7, 5))).toMatchObject({ status: 'due', reason: null });
+    expect(checkpointState(rounds(1, 9, 7, 8))).toMatchObject({ reason: { kind: 'stalled' } });
   });
 
   test('振り返りが複数あっても、窓は最後の振り返り以降だけを数える', () => {
@@ -59,8 +59,8 @@ describe('checkpointState', () => {
   });
 
   test('最後のラウンドが 0 件か accepted なら停滞ではない', () => {
-    expect(checkpointState(rounds(3, 1, 0))).toMatchObject({ ask: null });
-    expect(checkpointState([round(2), round(2), round(2, true)])).toMatchObject({ ask: null });
+    expect(checkpointState(rounds(3, 1, 0))).toMatchObject({ reason: null });
+    expect(checkpointState([round(2), round(2), round(2, true)])).toMatchObject({ reason: null });
   });
 
   test('振り返りの記録以降のラウンドだけを窓として数える', () => {
@@ -72,12 +72,17 @@ describe('checkpointState', () => {
     const state = checkpointState([...rounds(9, 7, 5), checkpoint, ...rounds(4, 3, 1)]);
     expect(state).toMatchObject({
       status: 'due',
-      ask: { kind: 'long', totalRounds: LONG_REVIEW_ROUNDS },
+      reason: { kind: 'long', totalRounds: LONG_REVIEW_ROUNDS },
     });
   });
 
+  test('長期化と停滞が重なったら長期化を優先する', () => {
+    const state = checkpointState([...rounds(9, 7, 5), checkpoint, ...rounds(4, 3, 3)]);
+    expect(state).toMatchObject({ reason: { kind: 'long' } });
+  });
+
   test(`ラウンドが ${LONG_REVIEW_ROUNDS} に満たない間は、下がっている限り確認を求めない`, () => {
-    expect(checkpointState(rounds(9, 7, 5))).toMatchObject({ ask: null });
+    expect(checkpointState(rounds(9, 7, 5))).toMatchObject({ reason: null });
   });
 });
 
@@ -119,14 +124,14 @@ describe('judgeRound', () => {
     const verdict = judgeRound(rounds(8, 6, 4), roundOf(3));
     expect(verdict).toEqual({
       kind: 'blocked',
-      state: { status: 'due', counts: [8, 6, 4], totalRounds: 3, ask: null },
+      state: { status: 'due', counts: [8, 6, 4], totalRounds: 3, reason: null },
     });
   });
 
   test('窓が 2 ラウンドのうちは、3 ラウンド目を記録でき、追記後の状態で次の振り返りを予告する', () => {
     expect(judgeRound(rounds(8, 6), roundOf(4))).toMatchObject({
       kind: 'record',
-      next: { status: 'due', counts: [8, 6, 4], totalRounds: 3, ask: null },
+      next: { status: 'due', counts: [8, 6, 4], totalRounds: 3, reason: null },
     });
   });
 
@@ -156,11 +161,21 @@ describe('judgeCheckpoint', () => {
     });
   });
 
-  test(`確認が必須のときは ${ASKED} 以外を拒否する`, () => {
+  test('停滞時は診断結果と方針についてユーザーに相談するまで受理しない', () => {
     expect(judgeCheckpoint(rounds(5, 8, 6), 'continue', note, head)).toMatchObject({
       rejection: { kind: 'must_ask', reason: { kind: 'stalled' } },
     });
+    expect(judgeCheckpoint(rounds(5, 8, 6), 'replan', note, head)).toMatchObject({
+      rejection: { kind: 'must_ask', reason: { kind: 'stalled' } },
+    });
     expect(judgeCheckpoint(rounds(5, 8, 6), ASKED, note, head).kind).toBe('accept');
+  });
+
+  test('長期化時は停滞もしていても asked 以外を拒否する', () => {
+    const entries = [...rounds(9, 7, 5), checkpoint, ...rounds(4, 3, 3)];
+    expect(judgeCheckpoint(entries, 'replan', note, head)).toMatchObject({
+      rejection: { kind: 'must_ask', reason: { kind: 'long' } },
+    });
   });
 
   test('診断メモは 30 文字から受理し、29 文字は拒否する', () => {

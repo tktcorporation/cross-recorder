@@ -1,5 +1,50 @@
 # cross-recorder
 
+## 0.13.0
+
+### Minor Changes
+
+- [#59](https://github.com/tktcorporation/cross-recorder/pull/59) [`9591d15`](https://github.com/tktcorporation/cross-recorder/commit/9591d15ad25ae5939df60a8486c98de7824cb67d) Thanks [@tktcorporation](https://github.com/tktcorporation)! - UI をスタジオ風のダークテーマに刷新。elevation を持つカラートークン体系、統一されたアイコンセット、録音中にグローする録音ボタン、状態ラベル付きのヒーロータイマー、接地した音声ソースドック、タイトルバーの LIVE インジケータ、ライブラリの空状態を改善した。
+
+- [#73](https://github.com/tktcorporation/cross-recorder/pull/73) [`7d74a60`](https://github.com/tktcorporation/cross-recorder/commit/7d74a604edcc12f52d5aa8aaf9656ac6c76a350a) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 再生・削除・設定周りの「押しても反応がない」不具合を修正し、基本的な使い勝手を改善した。
+
+  - 録音データのデコードに失敗した場合、再生ボタンが反応しないまま固まっていた不具合を修正。失敗時はエラーメッセージを表示し、再生ボタンを無効化するようにした
+  - ライブラリカードの日時・長さ・サイズがメタデータ不整合時に `NaN` のまま表示されていた不具合を修正し、不明な値は `—` で表示するようにした
+  - 削除ボタンが確認なしで即座に録音を削除していたのを、2 段階クリックでの確認に変更。削除に失敗した場合もエラーメッセージを表示するようにした
+  - 設定パネルが一部フィールド欠落のレスポンスを受け取ると入力欄が編集不能になりうる不具合を修正
+  - スペースキーで録音の開始/停止をトグルできるようにした（入力欄にフォーカスがある場合を除く）
+  - `pnpm dev:hmr` のブラウザプレビュー用にファビコンを追加した（配布版アプリのウィンドウアイコンは electrobun のバンドル設定側の別ものなので対象外）
+
+### Patch Changes
+
+- [#73](https://github.com/tktcorporation/cross-recorder/pull/73) [`a82a107`](https://github.com/tktcorporation/cross-recorder/commit/a82a107617f6295fd85ec17622c829eacd2f24d2) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 依存パッケージを更新し、既知の脆弱性を解消した。
+
+  - nanoid・vitest・postcss・autoprefixer・concurrently を、修正版を含むパッチ/マイナー版へ更新（負のサイズ指定時に nanoid の生成が無限ループしうる問題、postcss の低速単体テスト向け脆弱性、shell-quote の ReDoS など）
+  - Radix UI・zustand・effect・tailwind-merge 等の依存も安全なマイナー/パッチ更新を反映
+  - electrobun の依存チェーン（proxy-agent 経由）が引く `ip-address` の SSRF 境界回避の脆弱性（GHSA-mwp4-54f8-5fhr 他）は、そのチェーンが宣言する semver range 自体は既に修正版を許容しており、lockfile を再解決するだけで解消した（override は不要）
+
+- [#61](https://github.com/tktcorporation/cross-recorder/pull/61) [`3921dbf`](https://github.com/tktcorporation/cross-recorder/commit/3921dbf871bd3ce560e84c3f370857f727e36856) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 設定パネルの Language 入力欄のスタイルを他の入力欄と統一し、マイクデバイス選択のドロップダウンにテーマに合わせたシェブロンアイコンを追加。未使用の重複コンポーネント（TranscriptionSettings）を削除。
+
+- [#66](https://github.com/tktcorporation/cross-recorder/pull/66) [`4a0caca`](https://github.com/tktcorporation/cross-recorder/commit/4a0cacaecc059e70dfe18bd68ce3b411eabee330) Thanks [@tktcorporation](https://github.com/tktcorporation)! - 録音処理の安定性を改善。
+
+  - WAV ヘッダーを録音中に定期的にチェックポイントし、クラッシュ・強制終了時もそれまでの録音データを保持するようにした
+  - 32bit の WAV データサイズ上限（約 6.2 時間/ステレオ、約 12.4 時間/モノラル）に到達しても録音全体が失われず、そのトラックのみ書き込みを打ち切って安全に継続するようにした
+  - 録音チャンクの書き込み位置を明示的に指定するよう修正し、ヘッダーが録音データで上書きされないようにした
+  - マイクの切断を検知できるようにした（システム音声トラックのみだった TRACK_LOST 検知をマイクにも追加）
+  - マイクデバイス一覧の変更時に、選択中のデバイスを不必要に上書きしていた不具合を修正
+  - Linux (PipeWire) のシステム音声キャプチャが無音になっていた不具合と、権限チェックが常に失敗していた不具合を修正
+  - ネイティブシステム音声キャプチャで発生したエラーが握りつぶされずに通知されるよう修正
+
+- [#74](https://github.com/tktcorporation/cross-recorder/pull/74) [`db56942`](https://github.com/tktcorporation/cross-recorder/commit/db56942a40f81ded9012a8ba01f1a627bf6ce4cf) Thanks [@tktcorporation](https://github.com/tktcorporation)! - Fix `NativeTranscription.transcribe()` failing with a confusing JSON parse
+  error whenever the native speech-recognition binary wrote a non-JSON status
+  line, or nothing at all, to stderr on success.
+
+  Fix `capture-system-audio.sh` (Linux system-audio capture) hanging
+  indefinitely if invoked with a value-less `--sample-rate`/`--channels`
+  flag, and silently accepting a non-numeric value or an unknown option.
+  `NativeSystemAudioCapture`'s stderr error reporting also now keeps
+  listening for further errors if reporting one itself fails.
+
 ## 0.12.0
 
 ### Minor Changes

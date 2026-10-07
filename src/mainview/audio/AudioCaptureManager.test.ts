@@ -10,6 +10,7 @@ const { mockPipeline, mockMicCapture, mockSystemCapture, mockChunkWriter } =
       initialize: vi.fn().mockResolvedValue(undefined),
       addTrack: vi.fn(),
       stop: vi.fn(),
+      stopTrack: vi.fn(),
       getAnalyserForTrack: vi.fn().mockReturnValue(null),
       getSampleRate: vi.fn().mockReturnValue(48000),
     },
@@ -39,6 +40,7 @@ vi.mock("./RecordingPipeline.js", () => {
       initialize = mockPipeline.initialize;
       addTrack = mockPipeline.addTrack;
       stop = mockPipeline.stop;
+      stopTrack = mockPipeline.stopTrack;
       getAnalyserForTrack = mockPipeline.getAnalyserForTrack;
       getSampleRate = mockPipeline.getSampleRate;
     },
@@ -129,6 +131,7 @@ describe("AudioCaptureManager", () => {
     mockPipeline.initialize.mockResolvedValue(undefined);
     mockPipeline.addTrack.mockClear();
     mockPipeline.stop.mockClear();
+    mockPipeline.stopTrack.mockClear();
     mockPipeline.getAnalyserForTrack.mockReturnValue(null);
     mockChunkWriter.enqueue.mockClear();
     mockChunkWriter.flush.mockClear();
@@ -292,6 +295,28 @@ describe("AudioCaptureManager", () => {
   it("stop() throws when no active session", async () => {
     const manager = new AudioCaptureManager(rpc);
     await expect(manager.stop()).rejects.toThrow("No active recording session");
+  });
+
+  it.each(["mic", "system"] as const)("上限トラック %s だけを止め、他トラックの PCM と保存を継続する", async (capped) => {
+    const manager = new AudioCaptureManager(rpc);
+    await manager.start({ micEnabled: true, systemAudioEnabled: true });
+    const callbacks = new Map(mockPipeline.addTrack.mock.calls.map(([kind, , , callback]) => [kind, callback as (pcm: ArrayBuffer) => void]));
+    manager.stopTrack(capped);
+    manager.stopTrack(capped);
+    expect(mockPipeline.stopTrack).toHaveBeenCalledExactlyOnceWith(capped);
+    expect(mockMicCapture.stop).toHaveBeenCalledTimes(capped === "mic" ? 1 : 0);
+    expect(mockSystemCapture.stop).toHaveBeenCalledTimes(capped === "system" ? 1 : 0);
+    const cappedCallback = callbacks.get(capped);
+    const remaining = capped === "mic" ? "system" : "mic";
+    const remainingCallback = callbacks.get(remaining);
+    if (!cappedCallback || !remainingCallback) throw new Error("Both producers must be started");
+    cappedCallback(new ArrayBuffer(4));
+    remainingCallback(new ArrayBuffer(4));
+    expect(mockChunkWriter.enqueue).toHaveBeenCalledExactlyOnceWith("test-session-id", remaining, expect.any(ArrayBuffer));
+    expect(rpc.finalizeRecording).not.toHaveBeenCalled();
+    mockChunkWriter.getChunkCounts.mockReturnValue({ mic: 3, system: 4 });
+    await manager.stop();
+    expect(rpc.finalizeRecording).toHaveBeenCalledWith(expect.objectContaining({ totalChunks: { mic: 3, system: 4 } }));
   });
 
   it("cancel() is safe to call when no active session", async () => {

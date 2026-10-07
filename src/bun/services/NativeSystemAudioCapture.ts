@@ -325,6 +325,7 @@ export class NativeSystemAudioCapture {
     initialBuffer: string,
   ): void {
     let buffer = initialBuffer;
+    const capture = this.capture;
 
     // readNextMessage() が最初のメッセージを切り出した残りを initialBuffer
     // として渡してくる。1 回の reader.read() で複数行がまとめて届くと、
@@ -353,7 +354,7 @@ export class NativeSystemAudioCapture {
         const msg = parsed as Record<string, unknown>;
         if (typeof msg.error === "string") {
           try {
-            this.capture?.onError?.(msg.error as string);
+            if (this.capture === capture) capture?.onError?.(msg.error as string);
           } catch (err) {
             // onError（RPC 送信等）の失敗をここで飲み込まずループの外
             // まで伝播させると、以後このセッションでネイティブ側の
@@ -400,6 +401,9 @@ export class NativeSystemAudioCapture {
     writeChunk: WriteChunkFn,
     sampleRate: number,
   ): void {
+    // A stopped reader may still wake after a later capture has started.
+    // Bind callbacks to the producer that owns this reader.
+    const capture = this.capture;
     // ~100ms ごとにレベルを報告するためのサンプル数閾値
     // (サンプルレート / 10) で約100msぶんのサンプル
     const levelReportInterval = Math.floor(sampleRate / 10);
@@ -411,9 +415,10 @@ export class NativeSystemAudioCapture {
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
-          if (!this.capture) break;
+          if (!capture || this.capture !== capture) break;
 
           writeChunk(Buffer.from(value));
+          if (this.capture !== capture) break;
 
           // PCM Int16LE のサンプルから RMS レベルを計算
           const view = new DataView(value.buffer, value.byteOffset, value.byteLength);
@@ -428,7 +433,7 @@ export class NativeSystemAudioCapture {
             const rms = Math.sqrt(squareSum / sampleCount);
             // rms * 2 で見やすい範囲にスケール（macOS Swift 実装と同じ）
             const level = Math.min(1, rms * 2);
-            this.capture?.onLevel?.(level);
+            capture.onLevel?.(level);
             squareSum = 0;
             sampleCount = 0;
           }
@@ -439,9 +444,9 @@ export class NativeSystemAudioCapture {
         // writeChunk（ディスク書き込み・ヘッダーチェックポイント含む）や
         // ストリーム読み取りの想定外の失敗なので、握りつぶさず呼び出し元へ
         // 伝える。
-        this.capture?.onError?.(
-          err instanceof Error ? err.message : String(err),
-        );
+        if (this.capture === capture) {
+          capture?.onError?.(err instanceof Error ? err.message : String(err));
+        }
       }
     })();
   }

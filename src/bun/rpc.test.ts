@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   writeChunkSync: vi.fn(),
   cancelSession: vi.fn(),
   startCapture: vi.fn(),
+  stopCapture: vi.fn(),
 }));
 
 vi.mock("electrobun/bun", () => ({
@@ -29,6 +30,7 @@ vi.mock("./services/FileService.js", () => ({
 vi.mock("./services/NativeSystemAudioCapture.js", () => ({
   NativeSystemAudioCapture: class {
     start = mocks.startCapture;
+    stopIfActive = mocks.stopCapture;
   },
 }));
 vi.mock("./services/RecordingManager.js", () => ({}));
@@ -50,6 +52,7 @@ describe("RPC WAV track limit notifications", () => {
     mocks.send.recordingTrackLimitReached.mockReset();
     mocks.startSession.mockReturnValue(Effect.succeed({ success: true, filePath: "/tmp/fake-session" }));
     mocks.startCapture.mockResolvedValue(undefined);
+    mocks.stopCapture.mockResolvedValue(undefined);
   });
 
   it("notifies the renderer for browser chunks with the affected session and track", async () => {
@@ -62,7 +65,9 @@ describe("RPC WAV track limit notifications", () => {
     expect(mocks.send.recordingTrackLimitReached).toHaveBeenCalledExactlyOnceWith({ sessionId: "browser-session", trackKind: "mic", reason: "wav-size-limit" });
   });
 
-  it("uses the same renderer notification for native synchronous chunks", async () => {
+  it.each([false, true])("native の上限で対象セッションを停止する（通知送信失敗: %s）", async (deliveryFails) => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    if (deliveryFails) mocks.send.recordingTrackLimitReached.mockImplementation(() => { throw new Error("Renderer disconnected"); });
     mocks.writeChunkSync
       .mockReturnValueOnce({ success: true, chunkSizeBytes: 4, limitReached: true })
       .mockReturnValueOnce({ success: true, chunkSizeBytes: 0, limitReached: false });
@@ -79,6 +84,9 @@ describe("RPC WAV track limit notifications", () => {
     writeChunk(Buffer.alloc(8));
     expect(mocks.writeChunkSync).toHaveBeenCalledWith("native-session", "system", Buffer.alloc(8));
     expect(mocks.send.recordingTrackLimitReached).toHaveBeenCalledExactlyOnceWith({ sessionId: "native-session", trackKind: "system", reason: "wav-size-limit" });
+    expect(mocks.stopCapture).toHaveBeenCalledExactlyOnceWith("native-session");
+    expect(error).toHaveBeenCalledTimes(deliveryFails ? 1 : 0);
+    error.mockRestore();
   });
 
   it("keeps a completed write successful when the renderer transport fails", async () => {

@@ -81,6 +81,14 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
                       buffer,
                     );
                     notifyTrackLimit(params.sessionId, "system", written);
+                    if (written.limitReached) {
+                      // Stop at the writer boundary even if UI delivery fails.
+                      // The session guard prevents a stale callback from stopping
+                      // another recording's native producer.
+                      void nativeCapture.stopIfActive(params.sessionId).catch((error) => {
+                        console.error("[RPC] Failed to stop capped native capture:", error);
+                      });
+                    }
                   },
                   (level) => rpc.send.nativeSystemAudioLevel({ level }),
                   (reason) => rpc.send.nativeSystemAudioError({ reason }),

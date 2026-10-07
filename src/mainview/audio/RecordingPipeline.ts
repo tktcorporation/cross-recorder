@@ -91,18 +91,24 @@ export class RecordingPipeline {
   }
 
   stop(): void {
-    for (const [, track] of this.tracks) {
-      track.worklet.disconnect();
-      track.analyser.disconnect();
-      track.source.disconnect();
-      track.silentGain.disconnect();
-    }
-    this.tracks.clear();
+    for (const trackKind of this.tracks.keys()) this.stopTrack(trackKind);
 
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;
     }
+  }
+
+  stopTrack(trackKind: TrackKind): void {
+    const track = this.tracks.get(trackKind);
+    if (!track) return;
+    track.worklet.port.onmessage = null;
+    track.worklet.port.close();
+    track.worklet.disconnect();
+    track.analyser.disconnect();
+    track.source.disconnect();
+    track.silentGain.disconnect();
+    this.tracks.delete(trackKind);
   }
 
   getSampleRate(): number {

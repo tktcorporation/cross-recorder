@@ -205,6 +205,12 @@ export function useRecording() {
       handleStateTransitionRef.current(state);
     });
     const unsubLimits = session.on("trackLimitReached", (notification) => {
+      managerRef.current?.stopTrack(notification.trackKind);
+      if (notification.trackKind === "mic") setMicAnalyser(null);
+      else {
+        setSystemAnalyser(null);
+        setNativeSystemLevel(0);
+      }
       addRecordingLimitTrack(notification.trackKind);
     });
 
@@ -230,7 +236,10 @@ export function useRecording() {
 
   // Listen for native system audio level updates from bun process
   useWindowEvent("native-system-audio-level", (detail) => {
-    setNativeSystemLevel(detail.level);
+    const state = sessionRef.current?.getState();
+    if ((state?.type === "recording" || state?.type === "degraded") && state.activeTracks.includes("system")) {
+      setNativeSystemLevel(detail.level);
+    }
   }, [setNativeSystemLevel]);
 
   // Listen for native system audio errors (subprocess crash etc.)

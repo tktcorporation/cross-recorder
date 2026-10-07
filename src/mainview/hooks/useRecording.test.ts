@@ -8,6 +8,7 @@ const fixtures = vi.hoisted(() => ({
   manager: {
     start: vi.fn(),
     stop: vi.fn(),
+    stopTrack: vi.fn(),
     cancel: vi.fn(),
     getSessionId: vi.fn(),
     onTrackEnded: vi.fn(),
@@ -43,6 +44,7 @@ vi.mock("@audio/AudioCaptureManager.js", () => ({
   AudioCaptureManager: class {
     start = fixtures.manager.start;
     stop = fixtures.manager.stop;
+    stopTrack = fixtures.manager.stopTrack;
     cancel = fixtures.manager.cancel;
     getSessionId = fixtures.manager.getSessionId;
     onTrackEnded = fixtures.manager.onTrackEnded;
@@ -109,6 +111,8 @@ describe("useRecording track limit lifecycle", () => {
     expect(useRecordingStore.getState().sessionState).toMatchObject({ activeTracks: ["mic"] });
     expect(useRecordingStore.getState().recordingLimitTracks).toEqual(["system"]);
     expect(fixtures.manager.stop).not.toHaveBeenCalled();
+    expect(fixtures.manager.stopTrack).toHaveBeenCalledExactlyOnceWith("system");
+    expect(useRecordingStore.getState().nativeSystemLevel).toBe(0);
   });
 
   it("retains the warning after last-track finalization and clears it for a new START", async () => {
@@ -122,6 +126,28 @@ describe("useRecording track limit lifecycle", () => {
     actions.startRecording();
     expect(useRecordingStore.getState().recordingLimitTracks).toEqual([]);
     await vi.waitFor(() => expect(useRecordingStore.getState().sessionState.type).toBe("recording"));
+  });
+
+  it("上限トラックだけの波形を消し、重複通知と終了後の native レベルを無視する", async () => {
+    const micAnalyser = {} as AnalyserNode;
+    const systemAnalyser = {} as AnalyserNode;
+    fixtures.manager.getMicAnalyser.mockReturnValueOnce(micAnalyser);
+    fixtures.manager.getSystemAnalyser.mockReturnValueOnce(systemAnalyser);
+    useRecordingStore.getState().setSystemAudioEnabled(true);
+    const actions = mount();
+    actions.startRecording();
+    await vi.waitFor(() => expect(useRecordingStore.getState().sessionState.type).toBe("recording"));
+    notify("s1", "mic");
+    notify("s1", "mic");
+    expect(fixtures.manager.stopTrack).toHaveBeenCalledExactlyOnceWith("mic");
+    expect(useRecordingStore.getState().micAnalyser).toBeNull();
+    expect(useRecordingStore.getState().systemAnalyser).toBe(systemAnalyser);
+    useRecordingStore.getState().setNativeSystemLevel(0.7);
+    notify("s1", "system");
+    const receiveLevel = fixtures.handlers.get("native-system-audio-level") as unknown as (detail: { level: number }) => void;
+    receiveLevel({ level: 0.9 });
+    expect(useRecordingStore.getState().nativeSystemLevel).toBe(0);
+    expect(useRecordingStore.getState().systemAnalyser).toBeNull();
   });
 
   it("ignores notifications while stopping and after a subsequent session starts", async () => {
@@ -142,6 +168,7 @@ describe("useRecording track limit lifecycle", () => {
     notify("s1", "mic");
     expect(useRecordingStore.getState().recordingLimitTracks).toEqual([]);
     expect(useRecordingStore.getState().sessionState.type).toBe("recording");
+    expect(fixtures.manager.stopTrack).not.toHaveBeenCalled();
   });
 
   it("ignores notifications after cancel cleanup and on the next mounted session", async () => {

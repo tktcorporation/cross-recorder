@@ -252,6 +252,28 @@ describe("NativeSystemAudioCapture#start", () => {
 });
 
 describe("NativeSystemAudioCapture#stop", () => {
+  it("書き込み境界で停止した後は PCM とレベル通知を配信しない", async () => {
+    writeStub([
+      "#!/usr/bin/env bash",
+      "trap 'exit 0' TERM",
+      'echo \'{"status":"started"}\' >&2',
+      "while true; do printf '\\x00\\x20'; sleep 0.05; done",
+    ].join("\n"));
+    const capture = new NativeSystemAudioCapture();
+    const chunks = vi.fn();
+    const levels = vi.fn();
+    let stopped: Promise<void> | undefined;
+    await capture.start("capped-session", 10, (buffer) => {
+      chunks(buffer);
+      stopped = capture.stopIfActive("capped-session");
+    }, levels);
+    await vi.waitFor(() => expect(chunks).toHaveBeenCalledOnce());
+    await stopped;
+    expect(capture.isActive()).toBe(false);
+    expect(chunks).toHaveBeenCalledOnce();
+    expect(levels).not.toHaveBeenCalled();
+  });
+
   it("terminates a SIGTERM-responsive process quickly", async () => {
     writeStub(
       [

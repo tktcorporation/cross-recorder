@@ -29,6 +29,7 @@ export class AudioCaptureManager {
   private onErrorCallback: ((reason: string) => void) | null = null;
   private usingNativeSystemAudio = false;
   private acceptingChunks = false;
+  private stoppedTracks = new Set<TrackKind>();
 
   constructor(private rpcRequest: RpcRequest) {
     this.pipeline = new RecordingPipeline();
@@ -56,6 +57,7 @@ export class AudioCaptureManager {
     this.activeTracks = [];
     this.usingNativeSystemAudio = config.nativeSystemAudio ?? false;
     this.acceptingChunks = true;
+    this.stoppedTracks.clear();
     const sessionId = this.sessionId;
 
     this.chunkWriter = new ChunkWriter({
@@ -128,7 +130,7 @@ export class AudioCaptureManager {
         });
         const micStream = await this.micCapture.start(config.micDeviceId);
         this.pipeline.addTrack("mic", micStream, 1, (data: ArrayBuffer) => {
-          if (this.acceptingChunks && this.sessionId === sessionId) {
+          if (this.acceptingChunks && this.sessionId === sessionId && !this.stoppedTracks.has("mic")) {
             this.chunkWriter?.enqueue(sessionId, "mic", data);
           }
         });
@@ -147,7 +149,7 @@ export class AudioCaptureManager {
           systemStream,
           2,
           (data: ArrayBuffer) => {
-            if (this.acceptingChunks && this.sessionId === sessionId) {
+            if (this.acceptingChunks && this.sessionId === sessionId && !this.stoppedTracks.has("system")) {
               this.chunkWriter?.enqueue(sessionId, "system", data);
             }
           },
@@ -184,6 +186,16 @@ export class AudioCaptureManager {
     }
 
     await this.cleanup(false);
+  }
+
+  stopTrack(trackKind: TrackKind): void {
+    if (!this.acceptingChunks || !this.sessionId || this.stoppedTracks.has(trackKind)) return;
+    this.stoppedTracks.add(trackKind);
+    this.pipeline.stopTrack(trackKind);
+    if (trackKind === "mic") this.micCapture.stop();
+    else this.systemCapture.stop();
+    // Keep activeTracks for finalization: this track's already saved chunks
+    // still belong to the recording, even though its producer has stopped.
   }
 
   private async cleanup(

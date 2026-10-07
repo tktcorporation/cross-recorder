@@ -107,4 +107,37 @@ describe("ChunkWriter", () => {
     writer.reset();
     expect(writer.getTotalBytes()).toBe(0);
   });
+
+  it("flush waits for an in-flight response and queued chunks on both tracks", async () => {
+    let completeWrite!: (result: { success: boolean; chunkSizeBytes: number }) => void;
+    mockSaveChunk.mockImplementationOnce(() => new Promise((resolve) => { completeWrite = resolve; }));
+    const first = writer.enqueue("s1", "system", new ArrayBuffer(4));
+    await writer.enqueue("s1", "mic", new ArrayBuffer(6));
+    let flushed = false;
+    const flush = writer.flush().then(() => { flushed = true; });
+    await Promise.resolve();
+    expect(flushed).toBe(false);
+    expect(mockSaveChunk).toHaveBeenCalledTimes(1);
+    completeWrite({ success: true, chunkSizeBytes: 4 });
+    await Promise.all([first, flush]);
+    expect(flushed).toBe(true);
+    expect(mockSaveChunk).toHaveBeenCalledTimes(2);
+    expect(mockSaveChunk.mock.calls[1][0].trackKind).toBe("mic");
+  });
+
+  it("discard drops queued chunks and waits for the in-flight response", async () => {
+    let completeWrite!: (result: { success: boolean; chunkSizeBytes: number }) => void;
+    mockSaveChunk.mockImplementationOnce(() => new Promise((resolve) => { completeWrite = resolve; }));
+    const first = writer.enqueue("old", "mic", new ArrayBuffer(4));
+    await writer.enqueue("old", "system", new ArrayBuffer(6));
+    let discarded = false;
+    const discard = writer.discard().then(() => { discarded = true; });
+    await Promise.resolve();
+    expect(discarded).toBe(false);
+    await writer.enqueue("old", "mic", new ArrayBuffer(8));
+    completeWrite({ success: true, chunkSizeBytes: 4 });
+    await Promise.all([first, discard]);
+    expect(mockSaveChunk).toHaveBeenCalledTimes(1);
+    expect(mockOnError).not.toHaveBeenCalled();
+  });
 });

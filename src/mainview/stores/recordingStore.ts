@@ -3,6 +3,7 @@ import type {
   AudioDevice,
   RecordingMetadata,
   RecordingState,
+  TrackKind,
 } from "@shared/types.js";
 import type { SessionState } from "../audio/types.js";
 
@@ -21,6 +22,7 @@ type RecordingStore = {
   micAnalyser: AnalyserNode | null;
   systemAnalyser: AnalyserNode | null;
   recordingError: string | null;
+  recordingLimitTracks: TrackKind[];
   nativeSystemAudioAvailable: boolean;
   nativeSystemLevel: number;
   platform: string;
@@ -40,6 +42,8 @@ type RecordingStore = {
   setMicAnalyser: (analyser: AnalyserNode | null) => void;
   setSystemAnalyser: (analyser: AnalyserNode | null) => void;
   setRecordingError: (error: string | null) => void;
+  addRecordingLimitTrack: (track: TrackKind) => void;
+  clearRecordingLimits: () => void;
   setNativeSystemAudioAvailable: (available: boolean) => void;
   setNativeSystemLevel: (level: number) => void;
   setPlatform: (platform: string) => void;
@@ -60,6 +64,7 @@ const initialState = {
   micAnalyser: null as AnalyserNode | null,
   systemAnalyser: null as AnalyserNode | null,
   recordingError: null as string | null,
+  recordingLimitTracks: [] as TrackKind[],
   nativeSystemAudioAvailable: false,
   nativeSystemLevel: 0,
   platform: "",
@@ -100,6 +105,12 @@ export const useRecordingStore = create<RecordingStore>((set) => ({
   setMicAnalyser: (analyser) => set({ micAnalyser: analyser }),
   setSystemAnalyser: (analyser) => set({ systemAnalyser: analyser }),
   setRecordingError: (error) => set({ recordingError: error }),
+  addRecordingLimitTrack: (track) => set((s) => ({
+    recordingLimitTracks: s.recordingLimitTracks.includes(track)
+      ? s.recordingLimitTracks
+      : [...s.recordingLimitTracks, track],
+  })),
+  clearRecordingLimits: () => set({ recordingLimitTracks: [] }),
   setNativeSystemAudioAvailable: (available) =>
     set({ nativeSystemAudioAvailable: available }),
   setNativeSystemLevel: (level) => set({ nativeSystemLevel: level }),

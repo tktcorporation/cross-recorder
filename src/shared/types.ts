@@ -18,6 +18,12 @@ export type RecordingConfig = {
 
 export type TrackKind = "mic" | "system";
 
+export type RecordingTrackLimit = {
+  sessionId: string;
+  trackKind: TrackKind;
+  reason: "wav-size-limit";
+};
+
 /**
  * エクスポート時の出力フォーマット。
  * 複数トラックを1本にミックスダウンした上で、wav (無圧縮) か mp3 (圧縮) で書き出す。

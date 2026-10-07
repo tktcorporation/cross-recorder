@@ -29,6 +29,7 @@ const { mockPipeline, mockMicCapture, mockSystemCapture, mockChunkWriter } =
       getTotalBytes: vi.fn().mockReturnValue(0),
       getChunkCounts: vi.fn().mockReturnValue({}),
       reset: vi.fn(),
+      discard: vi.fn().mockResolvedValue(undefined),
     },
   }));
 
@@ -72,6 +73,7 @@ vi.mock("./ChunkWriter.js", () => {
       getTotalBytes = mockChunkWriter.getTotalBytes;
       getChunkCounts = mockChunkWriter.getChunkCounts;
       reset = mockChunkWriter.reset;
+      discard = mockChunkWriter.discard;
     },
   };
 });
@@ -133,6 +135,7 @@ describe("AudioCaptureManager", () => {
     mockChunkWriter.getTotalBytes.mockReturnValue(0);
     mockChunkWriter.getChunkCounts.mockReturnValue({});
     mockChunkWriter.reset.mockClear();
+    mockChunkWriter.discard.mockReset().mockResolvedValue(undefined);
   });
 
   it("cleans up and cancels session when system audio capture fails", async () => {
@@ -177,6 +180,21 @@ describe("AudioCaptureManager", () => {
     });
     expect(mockPipeline.stop).toHaveBeenCalled();
     expect(manager.getSessionId()).toBeNull();
+  });
+
+  it("waits for mic writes before canceling when the second capture fails to start", async () => {
+    let discarded!: () => void;
+    mockChunkWriter.discard.mockImplementationOnce(() => new Promise<void>((resolve) => { discarded = resolve; }));
+    mockSystemCapture.start.mockRejectedValueOnce(new Error("System capture failed"));
+    const manager = new AudioCaptureManager(rpc);
+    const start = manager.start({ micEnabled: true, systemAudioEnabled: true });
+    // Attach the rejection handler immediately, before driving the cleanup.
+    const rejection = expect(start).rejects.toThrow("System capture failed");
+    await vi.waitFor(() => expect(mockChunkWriter.discard).toHaveBeenCalledOnce());
+    expect(rpc.cancelRecording).not.toHaveBeenCalled();
+    discarded();
+    await rejection;
+    expect(rpc.cancelRecording).toHaveBeenCalledOnce();
   });
 
   it("starts successfully with mic only", async () => {
@@ -237,6 +255,38 @@ describe("AudioCaptureManager", () => {
     expect(rpc.finalizeRecording).toHaveBeenCalledOnce();
     expect(metadata).toBeDefined();
     expect(manager.getSessionId()).toBeNull();
+  });
+
+  it("stop waits for the writer to drain before finalizing the files", async () => {
+    let drained!: () => void;
+    mockChunkWriter.flush.mockImplementationOnce(() => new Promise<void>((resolve) => { drained = resolve; }));
+    const manager = new AudioCaptureManager(rpc);
+    await manager.start({ micEnabled: true, systemAudioEnabled: true });
+    const stop = manager.stop();
+    expect(rpc.finalizeRecording).not.toHaveBeenCalled();
+    drained();
+    await stop;
+    expect(rpc.finalizeRecording).toHaveBeenCalledOnce();
+  });
+
+  it("cancel waits for discard before deleting files and ignores late PCM callbacks", async () => {
+    let discarded!: () => void;
+    mockChunkWriter.discard.mockImplementationOnce(() => new Promise<void>((resolve) => { discarded = resolve; }));
+    const manager = new AudioCaptureManager(rpc);
+    await manager.start({ micEnabled: true, systemAudioEnabled: true });
+    const [trackCall] = mockPipeline.addTrack.mock.calls;
+    if (!trackCall) throw new Error("Track was not started");
+    const pcmCallback = trackCall[3] as (pcm: ArrayBuffer) => void;
+    const cancel = manager.cancel();
+    expect(mockChunkWriter.discard).toHaveBeenCalledOnce();
+    expect(rpc.cancelRecording).not.toHaveBeenCalled();
+    pcmCallback(new ArrayBuffer(4));
+    expect(mockChunkWriter.enqueue).not.toHaveBeenCalled();
+    discarded();
+    await cancel;
+    expect(rpc.cancelRecording).toHaveBeenCalledOnce();
+    pcmCallback(new ArrayBuffer(4));
+    expect(mockChunkWriter.enqueue).not.toHaveBeenCalled();
   });
 
   it("stop() throws when no active session", async () => {

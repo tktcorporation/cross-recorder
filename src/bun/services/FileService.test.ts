@@ -8,6 +8,7 @@ import type { RecordingConfig } from "../../shared/types.js";
 import {
   startSession,
   writeChunkSync,
+  writeChunk,
   finalizeRecording,
   cancelSession,
   clampChunkForTrack,
@@ -77,14 +78,18 @@ describe("FileService — pure helpers", () => {
       expect(clampChunkForTrack(0, 7, 10_000, 4)).toBe(7);
     });
 
-    it("aligns a truncated chunk down to a whole sample frame", () => {
-      // 4 bytes/frame (e.g. stereo 16-bit): remaining=10 must not cut
-      // mid-frame, so it rounds down to 8.
-      expect(clampChunkForTrack(9990, 100, 10_000, 4)).toBe(8);
+    it("aligns the cumulative data size to a whole sample frame", () => {
+      // 既存の累計 9990 bytes はフレーム途中。残り 10 bytes を保存すると
+      // 累計が 10000 bytes (4 の倍数) になり、完成したフレームで終了できる。
+      expect(clampChunkForTrack(9990, 100, 10_000, 4)).toBe(10);
     });
 
     it("returns exactly the remaining bytes when they already land on a frame boundary", () => {
       expect(clampChunkForTrack(9988, 100, 10_000, 4)).toBe(12);
+    });
+
+    it("finishes the cumulative sample frame when native chunks split a frame", () => {
+      expect(clampChunkForTrack(7, 8, 15, 4)).toBe(5);
     });
   });
 
@@ -115,6 +120,59 @@ describe("FileService — session lifecycle (real filesystem)", () => {
     for (const dir of createdDirs.splice(0)) {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it.each(["sync", "effect"] as const)("%s writes notify once at a small cap and preserve the other track", async (entry) => {
+    const sessionId = `test-small-cap-${crypto.randomUUID()}`;
+    trackForCleanup(path.join(recordingsDir, sessionId));
+    const dualConfig = { ...config, channels: 2, systemAudioEnabled: true };
+    await runOrThrow(startSession(sessionId, dualConfig, [
+      { trackKind: "mic", channels: 1 },
+      { trackKind: "system", channels: 2 },
+    ], { maxDataSize: 15 }));
+    const save = (trackKind: "mic" | "system", chunk: Buffer) => entry === "sync"
+      ? Promise.resolve(writeChunkSync(sessionId, trackKind, chunk))
+      : runOrThrow(writeChunk(sessionId, trackKind, chunk));
+
+    expect(await save("system", Buffer.alloc(0))).toEqual({ success: true, chunkSizeBytes: 0, limitReached: false });
+    // Native stdout may split a sample frame between separate reads.
+    expect(await save("system", Buffer.alloc(7, 1))).toEqual({ success: true, chunkSizeBytes: 7, limitReached: false });
+    expect(await save("mic", Buffer.alloc(4, 3))).toEqual({ success: true, chunkSizeBytes: 4, limitReached: false });
+    expect(await save("system", Buffer.alloc(8, 2))).toEqual({ success: true, chunkSizeBytes: 5, limitReached: true });
+    expect(await save("system", Buffer.alloc(8, 9))).toEqual({ success: true, chunkSizeBytes: 0, limitReached: false });
+    expect(await save("system", Buffer.alloc(0))).toEqual({ success: true, chunkSizeBytes: 0, limitReached: false });
+    expect(await save("mic", Buffer.alloc(6, 4))).toEqual({ success: true, chunkSizeBytes: 6, limitReached: false });
+
+    const metadata = await runOrThrow(finalizeRecording(sessionId, dualConfig, { mic: 2, system: 5 }));
+    trackForCleanup(metadata.filePath);
+    const systemWav = fs.readFileSync(path.join(metadata.filePath, "system.wav"));
+    const micWav = fs.readFileSync(path.join(metadata.filePath, "mic.wav"));
+    expect(systemWav.readUInt32LE(40)).toBe(12);
+    expect(systemWav.readUInt32LE(4)).toBe(48);
+    expect(systemWav.subarray(44)).toEqual(Buffer.concat([Buffer.alloc(7, 1), Buffer.alloc(5, 2)]));
+    expect(micWav.readUInt32LE(40)).toBe(10);
+    expect(micWav.subarray(44)).toEqual(Buffer.concat([Buffer.alloc(4, 3), Buffer.alloc(6, 4)]));
+    expect(metadata.tracks).toHaveLength(2);
+  });
+
+  it("notifies on the exact last frame without waiting for another chunk", async () => {
+    const sessionId = `test-exact-cap-${crypto.randomUUID()}`;
+    trackForCleanup(path.join(recordingsDir, sessionId));
+    await runOrThrow(startSession(sessionId, config, [{ trackKind: "mic", channels: 1 }], { maxDataSize: 12 }));
+    expect(writeChunkSync(sessionId, "mic", Buffer.alloc(8))).toEqual({ success: true, chunkSizeBytes: 8, limitReached: false });
+    expect(writeChunkSync(sessionId, "mic", Buffer.alloc(4))).toEqual({ success: true, chunkSizeBytes: 4, limitReached: true });
+    expect(writeChunkSync(sessionId, "mic", Buffer.alloc(2))).toEqual({ success: true, chunkSizeBytes: 0, limitReached: false });
+    await runOrThrow(cancelSession(sessionId));
+  });
+
+  it("does not treat an empty read as a limit even when no complete frame fits", async () => {
+    const sessionId = `test-subframe-cap-${crypto.randomUUID()}`;
+    trackForCleanup(path.join(recordingsDir, sessionId));
+    await runOrThrow(startSession(sessionId, config, [{ trackKind: "system", channels: 2 }], { maxDataSize: 3 }));
+    expect(writeChunkSync(sessionId, "system", Buffer.alloc(0))).toEqual({ success: true, chunkSizeBytes: 0, limitReached: false });
+    expect(writeChunkSync(sessionId, "system", Buffer.alloc(4))).toEqual({ success: true, chunkSizeBytes: 0, limitReached: true });
+    expect(writeChunkSync(sessionId, "system", Buffer.alloc(1))).toEqual({ success: true, chunkSizeBytes: 0, limitReached: false });
+    await runOrThrow(cancelSession(sessionId));
   });
 
   it("checkpoints the header mid-recording so the file is valid even before finalize (crash resilience)", async () => {

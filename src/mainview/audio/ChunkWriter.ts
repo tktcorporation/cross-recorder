@@ -37,7 +37,8 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 
 export class ChunkWriter {
   private queue: QueueEntry[] = [];
-  private flushing = false;
+  private drainPromise: Promise<void> | null = null;
+  private closed = false;
   private errored = false;
   private chunkIndices: Map<TrackKind, number> = new Map();
   private totalBytes = 0;
@@ -54,18 +55,27 @@ export class ChunkWriter {
     trackKind: TrackKind,
     pcmBuffer: ArrayBuffer,
   ): Promise<void> {
-    if (this.errored) return;
+    if (this.errored || this.closed) return;
     const pcmData = arrayBufferToBase64(pcmBuffer);
     this.queue.push({ sessionId, trackKind, pcmData });
-    if (!this.flushing) {
-      await this.processQueue();
+    if (!this.drainPromise) {
+      await this.flush();
     }
   }
 
   async flush(): Promise<void> {
-    if (!this.flushing) {
-      await this.processQueue();
-    }
+    // A limit notification can start finalization before saveChunk responds.
+    // Join the existing drain, including every chunk queued before capture stops.
+    do {
+      await this.ensureDrain();
+    } while (this.drainPromise || this.queue.length > 0);
+  }
+
+  async discard(): Promise<void> {
+    this.closed = true;
+    this.queue = [];
+    // Do not delete the session underneath an outstanding RPC write.
+    await this.drainPromise;
   }
 
   getTotalBytes(): number {
@@ -78,15 +88,14 @@ export class ChunkWriter {
 
   reset(): void {
     this.queue = [];
-    this.flushing = false;
+    this.closed = false;
     this.errored = false;
     this.chunkIndices.clear();
     this.totalBytes = 0;
   }
 
   private async processQueue(): Promise<void> {
-    this.flushing = true;
-    while (this.queue.length > 0 && !this.errored) {
+    while (this.queue.length > 0 && !this.errored && !this.closed) {
       const entry = this.queue.shift()!;
       const chunkIndex = this.chunkIndices.get(entry.trackKind) ?? 0;
       this.chunkIndices.set(entry.trackKind, chunkIndex + 1);
@@ -101,17 +110,31 @@ export class ChunkWriter {
         if (!result.success) {
           this.errored = true;
           this.queue = [];
-          this.onError("chunk_write_failed");
+          if (!this.closed) this.onError("chunk_write_failed");
           break;
         }
         this.totalBytes += result.chunkSizeBytes;
       } catch {
         this.errored = true;
         this.queue = [];
-        this.onError("chunk_write_failed");
+        if (!this.closed) this.onError("chunk_write_failed");
         break;
       }
     }
-    this.flushing = false;
+  }
+
+  private ensureDrain(): Promise<void> {
+    if (!this.drainPromise) {
+      this.drainPromise = Promise.resolve()
+        .then(() => this.processQueue())
+        .finally(() => {
+          this.drainPromise = null;
+          // An enqueue may land between the drain's last await and this cleanup.
+          if (this.queue.length > 0 && !this.errored && !this.closed) {
+            void this.flush();
+          }
+        });
+    }
+    return this.drainPromise;
   }
 }

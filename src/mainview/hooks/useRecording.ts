@@ -8,13 +8,14 @@ import { useWindowEvent } from "./useWindowEvent.js";
 import { RecordingSession } from "@audio/RecordingSession.js";
 import type { AudioCaptureManager } from "@audio/AudioCaptureManager.js";
 import type { SessionState } from "@audio/types.js";
-import type { TrackKind } from "@shared/types.js";
+import type { RecordingTrackLimit, TrackKind } from "@shared/types.js";
 
 export function useRecording() {
   const { request } = useRpc();
   const sessionRef = useRef<RecordingSession | null>(null);
   const managerRef = useRef<AudioCaptureManager | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingTrackLimitsRef = useRef<RecordingTrackLimit[]>([]);
 
   const sessionState = useRecordingStore((s) => s.sessionState);
   const setSessionState = useRecordingStore((s) => s.setSessionState);
@@ -27,6 +28,8 @@ export function useRecording() {
   const setMicAnalyser = useRecordingStore((s) => s.setMicAnalyser);
   const setSystemAnalyser = useRecordingStore((s) => s.setSystemAnalyser);
   const setRecordingError = useRecordingStore((s) => s.setRecordingError);
+  const addRecordingLimitTrack = useRecordingStore((s) => s.addRecordingLimitTrack);
+  const clearRecordingLimits = useRecordingStore((s) => s.clearRecordingLimits);
   const nativeSystemAudioAvailable = useRecordingStore(
     (s) => s.nativeSystemAudioAvailable,
   );
@@ -74,6 +77,7 @@ export function useRecording() {
   function cleanupResources() {
     stopStatusTimer();
     managerRef.current = null;
+    pendingTrackLimitsRef.current = [];
     setCurrentSessionId(null);
     setMicAnalyser(null);
     setSystemAnalyser(null);
@@ -99,10 +103,12 @@ export function useRecording() {
 
       // Set up track-ended and error callbacks
       manager.onTrackEnded((trackKind: TrackKind) => {
+        if (managerRef.current !== manager) return;
         console.warn(`Track ended: ${trackKind}`);
         sessionRef.current?.dispatch({ type: "TRACK_LOST", track: trackKind });
       });
       manager.onError((reason: string) => {
+        if (managerRef.current !== manager) return;
         sessionRef.current?.dispatch({ type: "ERROR", reason });
       });
 
@@ -115,6 +121,7 @@ export function useRecording() {
         micDeviceId: selectedMicId ?? undefined,
         nativeSystemAudio: useNative,
       });
+      if (managerRef.current !== manager) return;
 
       // Expose AnalyserNodes (system analyser is null when using native capture)
       setMicAnalyser(manager.getMicAnalyser());
@@ -126,6 +133,14 @@ export function useRecording() {
         sessionId,
         tracks: requestedTracks,
       });
+      // Native capture starts before browser device acquisition finishes.
+      // Keep only this manager's early notification, then apply the usual
+      // session/active-track guards once ACQUIRED has established identity.
+      const pending = pendingTrackLimitsRef.current;
+      pendingTrackLimitsRef.current = [];
+      for (const notification of pending) {
+        sessionRef.current?.dispatch({ type: "TRACK_LIMIT_REACHED", ...notification });
+      }
     } catch (err) {
       console.error("Failed to acquire devices:", err);
       const reason = err instanceof Error ? err.message : "Unknown error";
@@ -154,6 +169,8 @@ export function useRecording() {
 
     switch (state.type) {
       case "acquiring":
+        clearRecordingLimits();
+        pendingTrackLimitsRef.current = [];
         handleAcquiring(state.requestedTracks);
         break;
       case "recording":
@@ -187,13 +204,21 @@ export function useRecording() {
     const unsub = session.on("stateChange", (state) => {
       handleStateTransitionRef.current(state);
     });
+    const unsubLimits = session.on("trackLimitReached", (notification) => {
+      addRecordingLimitTrack(notification.trackKind);
+    });
 
     return () => {
       unsub();
+      unsubLimits();
+      sessionRef.current = null;
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
-      managerRef.current?.cancel();
+      const manager = managerRef.current;
+      managerRef.current = null;
+      pendingTrackLimitsRef.current = [];
+      manager?.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -212,6 +237,17 @@ export function useRecording() {
   useWindowEvent("native-system-audio-error", (detail) => {
     console.warn("Native system audio error:", detail.reason);
     sessionRef.current?.dispatch({ type: "TRACK_LOST", track: "system" });
+  }, []);
+
+  useWindowEvent("recording-track-limit-reached", (detail) => {
+    const session = sessionRef.current;
+    const manager = managerRef.current;
+    if (!session || !manager || manager.getSessionId() !== detail.sessionId) return;
+    if (session.getState().type === "acquiring") {
+      pendingTrackLimitsRef.current.push(detail);
+      return;
+    }
+    session.dispatch({ type: "TRACK_LIMIT_REACHED", ...detail });
   }, []);
 
   const startRecording = useCallback(() => {

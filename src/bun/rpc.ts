@@ -16,6 +16,25 @@ import { NativeSystemAudioCapture } from "./services/NativeSystemAudioCapture.js
 
 const nativeCapture = new NativeSystemAudioCapture();
 
+function notifyTrackLimit(
+  sessionId: string,
+  trackKind: TrackKind,
+  result: FileService.WriteChunkResult,
+) {
+  if (result.limitReached) {
+    const delivery = Effect.runSyncExit(Effect.sync(() =>
+      rpc.send.recordingTrackLimitReached({ sessionId, trackKind, reason: "wav-size-limit" }),
+    ));
+    if (delivery._tag === "Failure") {
+      // Delivery is a separate side effect from the already completed write.
+      // A broken renderer transport cannot invalidate saved audio or interrupt
+      // the other track. Native background callbacks have no delivery caller.
+      console.error("[RPC] Failed to notify the renderer of a WAV track limit:", delivery.cause);
+    }
+  }
+  return { success: result.success, chunkSizeBytes: result.chunkSizeBytes };
+}
+
 export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
   handlers: {
     requests: {
@@ -55,12 +74,22 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
                 nativeCapture.start(
                   params.sessionId,
                   params.config.sampleRate,
-                  (buffer) =>
-                    FileService.writeChunkSync(
+                  (buffer) => {
+                    const written = FileService.writeChunkSync(
                       params.sessionId,
                       "system",
                       buffer,
-                    ),
+                    );
+                    notifyTrackLimit(params.sessionId, "system", written);
+                    if (written.limitReached) {
+                      // Stop at the writer boundary even if UI delivery fails.
+                      // The session guard prevents a stale callback from stopping
+                      // another recording's native producer.
+                      void nativeCapture.stopIfActive(params.sessionId).catch((error) => {
+                        console.error("[RPC] Failed to stop capped native capture:", error);
+                      });
+                    }
+                  },
                   (level) => rpc.send.nativeSystemAudioLevel({ level }),
                   (reason) => rpc.send.nativeSystemAudioError({ reason }),
                 ),
@@ -85,9 +114,10 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
         pcmData: string;
       }) => {
         const buffer = Buffer.from(params.pcmData, "base64");
-        return Effect.runPromise(
+        const written = await Effect.runPromise(
           FileService.writeChunk(params.sessionId, params.trackKind, buffer),
         );
+        return notifyTrackLimit(params.sessionId, params.trackKind, written);
       },
 
       finalizeRecording: async (params: {

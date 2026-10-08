@@ -13,6 +13,52 @@ describe("RecordingSession", () => {
     session.on("stateChange", (state) => stateChanges.push(state));
   });
 
+  describe("WAV track limit notifications", () => {
+    function acquire(sessionId: string, tracks: Array<"mic" | "system"> = ["mic", "system"]) {
+      session.dispatch({ type: "START", requestedTracks: tracks });
+      session.dispatch({ type: "ACQUIRED", sessionId, tracks });
+    }
+
+    function limit(sessionId: string, trackKind: "mic" | "system") {
+      session.dispatch({ type: "TRACK_LIMIT_REACHED", sessionId, trackKind, reason: "wav-size-limit" });
+    }
+
+    it("degrades only the affected active track and emits the reason once", () => {
+      const limits: unknown[] = [];
+      session.on("trackLimitReached", (notification) => limits.push(notification));
+      acquire("s1");
+      limit("s1", "system");
+      expect(session.getState()).toMatchObject({ type: "degraded", activeTracks: ["mic"], lostTracks: ["system"] });
+      limit("s1", "system");
+      expect(limits).toEqual([{ sessionId: "s1", trackKind: "system", reason: "wav-size-limit" }]);
+    });
+
+    it("uses normal finalization when the last active track reaches the limit", () => {
+      acquire("s1", ["system"]);
+      limit("s1", "system");
+      expect(session.getState()).toEqual({ type: "stopping", sessionId: "s1" });
+      session.dispatch({ type: "FINALIZED" });
+      expect(session.getState()).toEqual({ type: "idle" });
+    });
+
+    it("ignores old-session, inactive-track and stopping notifications", () => {
+      const limits: unknown[] = [];
+      session.on("trackLimitReached", (notification) => limits.push(notification));
+      acquire("new", ["mic"]);
+      limit("old", "mic");
+      limit("new", "system");
+      expect(session.getState().type).toBe("recording");
+      session.dispatch({ type: "STOP" });
+      limit("new", "mic");
+      session.dispatch({ type: "FINALIZED" });
+      limit("new", "mic");
+      acquire("next", ["mic"]);
+      limit("new", "mic");
+      expect(session.getState()).toMatchObject({ type: "recording", sessionId: "next", activeTracks: ["mic"] });
+      expect(limits).toEqual([]);
+    });
+  });
+
   describe("initial state", () => {
     it("starts in idle state", () => {
       expect(session.getState()).toEqual({ type: "idle" });

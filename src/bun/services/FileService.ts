@@ -26,8 +26,7 @@ type TrackState = {
   filePath: string;
   bytesWritten: number;
   channels: number;
-  /** MAX_WAV_DATA_SIZE 到達の警告ログを一度だけ出すためのフラグ。 */
-  sizeLimitWarned: boolean;
+  sizeLimitReached: boolean;
 };
 
 type SessionState = {
@@ -35,6 +34,14 @@ type SessionState = {
   tracks: Map<TrackKind, TrackState>;
   config: RecordingConfig;
   lastHeaderCheckpointAt: number;
+  maxDataSize: number;
+};
+
+export type WriteChunkResult = {
+  success: true;
+  chunkSizeBytes: number;
+  /** True only for the write that first exhausts this track's WAV capacity. */
+  limitReached: boolean;
 };
 
 const sessions = new Map<string, SessionState>();
@@ -62,11 +69,15 @@ export const MAX_WAV_DATA_SIZE = 0xffffffff - 36;
  */
 export const HEADER_CHECKPOINT_INTERVAL_MS = 2000;
 
+function alignedDataSizeLimit(maxDataSize: number, frameSize: number): number {
+  return maxDataSize - (maxDataSize % frameSize);
+}
+
 /**
  * buffer のうち track に書き込める範囲（バイト数）を 32bit サイズ上限でクランプする。
- * 上限でチャンクを打ち切る場合、frameSize (channels * bytesPerSample) の倍数に
- * 切り捨てて、末尾のサンプルフレームがチャンネル数の途中で終わらないようにする
- * （境界に達していない通常の書き込みは frameSize に関わらずそのまま通す）。
+ * 上限を frameSize (channels * bytesPerSample) の倍数に切り捨て、累計サイズが
+ * 完全なサンプルフレームで終わるようにする。native stdout がフレーム途中で
+ * chunk を分割しても、上限より手前のデータはそのまま保存する。
  */
 export function clampChunkForTrack(
   bytesWritten: number,
@@ -74,10 +85,9 @@ export function clampChunkForTrack(
   maxSize: number = MAX_WAV_DATA_SIZE,
   frameSize: number = 1,
 ): number {
-  const remaining = maxSize - bytesWritten;
+  const remaining = alignedDataSizeLimit(maxSize, frameSize) - bytesWritten;
   if (remaining <= 0) return 0;
-  if (chunkLength <= remaining) return chunkLength;
-  return remaining - (remaining % frameSize);
+  return Math.min(chunkLength, remaining);
 }
 
 export function isCheckpointDue(
@@ -125,7 +135,23 @@ export function startSession(
   sessionId: string,
   config: RecordingConfig,
   tracks: Array<{ trackKind: TrackKind; channels: number }>,
+  options: { maxDataSize?: number } = {},
 ) {
+  // Internal injection lets tests exercise the actual filesystem boundary
+  // with a few bytes; it is deliberately absent from the RPC/config schema.
+  const maxDataSize = options.maxDataSize ?? MAX_WAV_DATA_SIZE;
+  if (
+    !Number.isSafeInteger(maxDataSize) ||
+    maxDataSize < 0 ||
+    maxDataSize > MAX_WAV_DATA_SIZE
+  ) {
+    return Effect.fail(
+      new FileWriteError({
+        path: path.join(recordingsDir, sessionId),
+        reason: "Invalid WAV data size limit",
+      }),
+    );
+  }
   return Effect.tryPromise({
     try: async () => {
       fs.mkdirSync(recordingsDir, { recursive: true });
@@ -146,7 +172,7 @@ export function startSession(
           filePath,
           bytesWritten: 0,
           channels: track.channels,
-          sizeLimitWarned: false,
+          sizeLimitReached: false,
         });
       }
 
@@ -155,6 +181,7 @@ export function startSession(
         tracks: trackMap,
         config,
         lastHeaderCheckpointAt: Date.now(),
+        maxDataSize,
       });
 
       return { success: true as const, filePath: sessionDir };
@@ -195,57 +222,56 @@ function writeChunkToTrack(
   sessionId: string,
   trackKind: TrackKind,
   buffer: Buffer,
-): { success: true; chunkSizeBytes: number } {
+): WriteChunkResult {
   const session = sessions.get(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
   const track = session.tracks.get(trackKind);
   if (!track) throw new Error(`Track not found: ${trackKind} in session ${sessionId}`);
 
-  // 空チャンクは「上限到達」ではないので、そのシグナルと混同しないよう
-  // clampChunkForTrack に渡す前に弾く（渡すと remaining に関わらず 0 になり、
-  // 上限到達の警告が誤発火して sizeLimitWarned を消費してしまう）。
-  if (buffer.length === 0) {
-    return { success: true, chunkSizeBytes: 0 };
+  // An empty read never consumes the one-time notification. Once limited, a
+  // track is terminal even if the next native fragment would be smaller.
+  if (buffer.length === 0 || track.sizeLimitReached) {
+    return { success: true, chunkSizeBytes: 0, limitReached: false };
   }
 
   const frameSize = track.channels * (session.config.bitDepth / 8);
   const writable = clampChunkForTrack(
     track.bytesWritten,
     buffer.length,
-    MAX_WAV_DATA_SIZE,
+    session.maxDataSize,
     frameSize,
   );
-  if (writable <= 0) {
-    if (!track.sizeLimitWarned) {
-      track.sizeLimitWarned = true;
-      console.warn(
-        `[FileService] Track "${trackKind}" reached the WAV format's 32-bit size limit ` +
-          `(${MAX_WAV_DATA_SIZE} bytes); further audio for this track will not be recorded ` +
-          `(session ${sessionId}). Other tracks keep recording normally.`,
-      );
-    }
-    return { success: true, chunkSizeBytes: 0 };
-  }
-
   const toWrite = writable < buffer.length ? buffer.subarray(0, writable) : buffer;
   // 明示的に書き込み位置を指定する。fd の暗黙カーソルは位置指定なしの
   // write でのみ進み、writeWavHeader の位置指定 (position=0) 書き込みでは
   // 進まない。位置指定なしで書くと常にファイル先頭 (カーソル=0) から書き
   // 始めてしまい、ヘッダーを録音データで上書きしてしまうため、ヘッダー分の
   // オフセットと累計書き込み済みバイト数から書き込み位置を毎回計算する。
-  fs.writeSync(
-    track.fd,
-    toWrite,
-    0,
-    toWrite.length,
-    WAV_HEADER_SIZE + track.bytesWritten,
-  );
+  if (toWrite.length > 0) {
+    fs.writeSync(
+      track.fd,
+      toWrite,
+      0,
+      toWrite.length,
+      WAV_HEADER_SIZE + track.bytesWritten,
+    );
+  }
   track.bytesWritten += toWrite.length;
 
   checkpointHeadersIfDue(session, Date.now());
 
-  return { success: true, chunkSizeBytes: toWrite.length };
+  const alignedLimit = alignedDataSizeLimit(session.maxDataSize, frameSize);
+  const limitReached = track.bytesWritten >= alignedLimit;
+  if (limitReached) {
+    track.sizeLimitReached = true;
+    console.warn(
+      `[FileService] Track "${trackKind}" reached the WAV format's 32-bit size limit ` +
+        `(${session.maxDataSize} bytes); further audio for this track will not be recorded ` +
+        `(session ${sessionId}). Other tracks keep recording normally.`,
+    );
+  }
+  return { success: true, chunkSizeBytes: toWrite.length, limitReached };
 }
 
 /** Synchronous write for NativeSystemAudioCapture callback. */
@@ -253,8 +279,8 @@ export function writeChunkSync(
   sessionId: string,
   trackKind: TrackKind,
   buffer: Buffer,
-): void {
-  writeChunkToTrack(sessionId, trackKind, buffer);
+): WriteChunkResult {
+  return writeChunkToTrack(sessionId, trackKind, buffer);
 }
 
 /** Effect-wrapped write for RPC handler (accepts Buffer, not base64). */

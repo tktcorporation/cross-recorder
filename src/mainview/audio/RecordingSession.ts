@@ -16,6 +16,13 @@ export class RecordingSession {
     const nextState = this.transition(this.state, event);
     if (nextState === null) return;
     this.state = nextState;
+    if (event.type === "TRACK_LIMIT_REACHED") {
+      this.emit("trackLimitReached", {
+        sessionId: event.sessionId,
+        trackKind: event.trackKind,
+        reason: event.reason,
+      });
+    }
     this.emit("stateChange", nextState);
   }
 
@@ -48,6 +55,16 @@ export class RecordingSession {
     current: SessionState,
     event: SessionEvent,
   ): SessionState | null {
+    if (event.type === "TRACK_LIMIT_REACHED") {
+      if (
+        (current.type !== "recording" && current.type !== "degraded") ||
+        current.sessionId !== event.sessionId ||
+        !current.activeTracks.includes(event.trackKind)
+      ) {
+        return null;
+      }
+      return this.transition(current, { type: "TRACK_LOST", track: event.trackKind });
+    }
     switch (current.type) {
       case "idle":
         return this.fromIdle(event);

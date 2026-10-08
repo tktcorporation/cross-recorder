@@ -28,6 +28,8 @@ export class AudioCaptureManager {
   private onTrackEndedCallback: ((trackKind: TrackKind) => void) | null = null;
   private onErrorCallback: ((reason: string) => void) | null = null;
   private usingNativeSystemAudio = false;
+  private acceptingChunks = false;
+  private stoppedTracks = new Set<TrackKind>();
 
   constructor(private rpcRequest: RpcRequest) {
     this.pipeline = new RecordingPipeline();
@@ -54,6 +56,9 @@ export class AudioCaptureManager {
     this.startTime = performance.now();
     this.activeTracks = [];
     this.usingNativeSystemAudio = config.nativeSystemAudio ?? false;
+    this.acceptingChunks = true;
+    this.stoppedTracks.clear();
+    const sessionId = this.sessionId;
 
     this.chunkWriter = new ChunkWriter({
       saveChunk: (data) => this.rpcRequest.saveRecordingChunk(data),
@@ -125,7 +130,9 @@ export class AudioCaptureManager {
         });
         const micStream = await this.micCapture.start(config.micDeviceId);
         this.pipeline.addTrack("mic", micStream, 1, (data: ArrayBuffer) => {
-          this.chunkWriter?.enqueue(this.sessionId!, "mic", data);
+          if (this.acceptingChunks && this.sessionId === sessionId && !this.stoppedTracks.has("mic")) {
+            this.chunkWriter?.enqueue(sessionId, "mic", data);
+          }
         });
       }
 
@@ -142,15 +149,19 @@ export class AudioCaptureManager {
           systemStream,
           2,
           (data: ArrayBuffer) => {
-            this.chunkWriter?.enqueue(this.sessionId!, "system", data);
+            if (this.acceptingChunks && this.sessionId === sessionId && !this.stoppedTracks.has("system")) {
+              this.chunkWriter?.enqueue(sessionId, "system", data);
+            }
           },
         );
       }
     } catch (err) {
       // Clean up any partially-started resources
+      this.acceptingChunks = false;
       this.pipeline.stop();
       this.micCapture.stop();
       this.systemCapture.stop();
+      await this.chunkWriter?.discard();
       this.chunkWriter = null;
       const sid = this.sessionId;
       this.sessionId = null;
@@ -177,9 +188,20 @@ export class AudioCaptureManager {
     await this.cleanup(false);
   }
 
+  stopTrack(trackKind: TrackKind): void {
+    if (!this.acceptingChunks || !this.sessionId || this.stoppedTracks.has(trackKind)) return;
+    this.stoppedTracks.add(trackKind);
+    this.pipeline.stopTrack(trackKind);
+    if (trackKind === "mic") this.micCapture.stop();
+    else this.systemCapture.stop();
+    // Keep activeTracks for finalization: this track's already saved chunks
+    // still belong to the recording, even though its producer has stopped.
+  }
+
   private async cleanup(
     shouldFinalize: boolean,
   ): Promise<RecordingMetadata | void> {
+    this.acceptingChunks = false;
     this.pipeline.stop();
     this.micCapture.stop();
     this.systemCapture.stop();
@@ -205,6 +227,7 @@ export class AudioCaptureManager {
       return metadata;
     }
 
+    await this.chunkWriter?.discard();
     await this.rpcRequest.cancelRecording({
       sessionId: this.sessionId!,
     });

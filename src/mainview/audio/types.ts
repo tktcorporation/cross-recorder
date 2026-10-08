@@ -1,4 +1,4 @@
-import type { TrackKind } from "@shared/types.js";
+import type { RecordingTrackLimit, TrackKind } from "@shared/types.js";
 
 // ── Session State (Discriminated Union) ──
 
@@ -27,6 +27,7 @@ export type SessionEvent =
   | { type: "START"; requestedTracks: TrackKind[] }
   | { type: "ACQUIRED"; sessionId: string; tracks: TrackKind[] }
   | { type: "TRACK_LOST"; track: TrackKind }
+  | ({ type: "TRACK_LIMIT_REACHED" } & RecordingTrackLimit)
   | { type: "ALL_TRACKS_LOST" }
   | { type: "STOP" }
   | { type: "FINALIZED" }
@@ -38,4 +39,5 @@ export type SessionEvent =
 export type SessionEventMap = {
   stateChange: (state: SessionState) => void;
   error: (error: { reason: string; state: SessionState }) => void;
+  trackLimitReached: (notification: RecordingTrackLimit) => void;
 };

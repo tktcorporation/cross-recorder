@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import type { RecordingTrackLimit } from "@shared/types.js";
 
 /** Maps CustomEvent names dispatched by src/mainview/rpc.ts to their detail types. */
 type WindowEventDetailMap = {
@@ -9,6 +10,7 @@ type WindowEventDetailMap = {
   };
   "native-system-audio-level": { level: number };
   "native-system-audio-error": { reason: string };
+  "recording-track-limit-reached": RecordingTrackLimit;
   "device-list-changed": { devices: unknown[] };
   "update-status": {
     status: string;

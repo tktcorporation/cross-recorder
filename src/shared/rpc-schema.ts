@@ -5,6 +5,7 @@ import type {
   RecordingConfig,
   RecordingMetadata,
   RecordingState,
+  RecordingTrackLimit,
   TrackKind,
   TranscriptionConfig,
   TranscriptionResult,
@@ -148,6 +149,7 @@ export type CrossRecorderRPC = {
       nativeSystemAudioError: {
         reason: string;
       };
+      recordingTrackLimitReached: RecordingTrackLimit;
       /** 文字起こしの進捗・完了をフロントエンドに通知する */
       transcriptionStatus: {
         recordingId: string;

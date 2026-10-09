@@ -10,11 +10,16 @@ import type { AudioCaptureManager } from "@audio/AudioCaptureManager.js";
 import type { SessionState } from "@audio/types.js";
 import type { RecordingTrackLimit, TrackKind } from "@shared/types.js";
 
+type NativeNotification =
+  | { type: "error"; sessionId: string; reason: string }
+  | { type: "receive"; sessionId: string; status: "gap" | "receiving" };
+
 export function useRecording() {
   const { request } = useRpc();
   const sessionRef = useRef<RecordingSession | null>(null);
   const managerRef = useRef<AudioCaptureManager | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingNativeRef = useRef<NativeNotification[]>([]);
   const pendingTrackLimitsRef = useRef<RecordingTrackLimit[]>([]);
 
   const sessionState = useRecordingStore((s) => s.sessionState);
@@ -39,6 +44,7 @@ export function useRecording() {
   const setNativeSystemLevel = useRecordingStore(
     (s) => s.setNativeSystemLevel,
   );
+  const setNativeSystemReceiveState = useRecordingStore((s) => s.setNativeSystemReceiveState);
   const setPlatform = useRecordingStore((s) => s.setPlatform);
 
   // --- Platform detection (run once on mount) ---
@@ -78,11 +84,40 @@ export function useRecording() {
     stopStatusTimer();
     managerRef.current = null;
     pendingTrackLimitsRef.current = [];
+    pendingNativeRef.current = [];
+    setNativeSystemReceiveState(null);
     setCurrentSessionId(null);
     setMicAnalyser(null);
     setSystemAnalyser(null);
     setNativeSystemLevel(0);
     updateStatus(0, 0);
+  }
+
+  function handleNativeNotification(notification: NativeNotification) {
+    const session = sessionRef.current;
+    const manager = managerRef.current;
+    if (!session || !manager || manager.getSessionId() !== notification.sessionId) return;
+    const state = session.getState();
+    if (state.type === "acquiring") {
+      if (state.requestedTracks.includes("system")) pendingNativeRef.current.push(notification);
+      return;
+    }
+    if (
+      (state.type !== "recording" && state.type !== "degraded") ||
+      state.sessionId !== notification.sessionId ||
+      !state.activeTracks.includes("system")
+    ) return;
+    if (notification.type === "receive") {
+      setNativeSystemReceiveState(notification.status);
+      if (notification.status === "gap") setNativeSystemLevel(0);
+      return;
+    }
+    console.warn("Native system audio error:", notification.reason);
+    setNativeSystemReceiveState(null);
+    setNativeSystemLevel(0);
+    setSystemAnalyser(null);
+    manager.stopTrack("system");
+    session.dispatch({ type: "TRACK_LOST", track: "system" });
   }
 
   async function handleAcquiring(requestedTracks: TrackKind[]) {
@@ -141,6 +176,9 @@ export function useRecording() {
       for (const notification of pending) {
         sessionRef.current?.dispatch({ type: "TRACK_LIMIT_REACHED", ...notification });
       }
+      const nativePending = pendingNativeRef.current;
+      pendingNativeRef.current = [];
+      for (const notification of nativePending) handleNativeNotification(notification);
     } catch (err) {
       console.error("Failed to acquire devices:", err);
       const reason = err instanceof Error ? err.message : "Unknown error";
@@ -171,6 +209,8 @@ export function useRecording() {
       case "acquiring":
         clearRecordingLimits();
         pendingTrackLimitsRef.current = [];
+        pendingNativeRef.current = [];
+        setNativeSystemReceiveState(null);
         handleAcquiring(state.requestedTracks);
         break;
       case "recording":
@@ -178,6 +218,8 @@ export function useRecording() {
         startStatusTimer();
         break;
       case "stopping":
+        setNativeSystemReceiveState(null);
+        setNativeSystemLevel(0);
         handleStopping(state.sessionId);
         break;
       case "error":
@@ -209,6 +251,7 @@ export function useRecording() {
       if (notification.trackKind === "mic") setMicAnalyser(null);
       else {
         setSystemAnalyser(null);
+        setNativeSystemReceiveState(null);
         setNativeSystemLevel(0);
       }
       addRecordingLimitTrack(notification.trackKind);
@@ -224,6 +267,9 @@ export function useRecording() {
       const manager = managerRef.current;
       managerRef.current = null;
       pendingTrackLimitsRef.current = [];
+      pendingNativeRef.current = [];
+      setNativeSystemReceiveState(null);
+      setNativeSystemLevel(0);
       manager?.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -237,15 +283,23 @@ export function useRecording() {
   // Listen for native system audio level updates from bun process
   useWindowEvent("native-system-audio-level", (detail) => {
     const state = sessionRef.current?.getState();
-    if ((state?.type === "recording" || state?.type === "degraded") && state.activeTracks.includes("system")) {
+    if (
+      (state?.type === "recording" || state?.type === "degraded") &&
+      state.activeTracks.includes("system") &&
+      state.sessionId === detail.sessionId &&
+      useRecordingStore.getState().nativeSystemReceiveState !== "gap"
+    ) {
       setNativeSystemLevel(detail.level);
     }
   }, [setNativeSystemLevel]);
 
   // Listen for native system audio errors (subprocess crash etc.)
   useWindowEvent("native-system-audio-error", (detail) => {
-    console.warn("Native system audio error:", detail.reason);
-    sessionRef.current?.dispatch({ type: "TRACK_LOST", track: "system" });
+    handleNativeNotification({ type: "error", ...detail });
+  }, []);
+
+  useWindowEvent("native-system-audio-receive-state", (detail) => {
+    handleNativeNotification({ type: "receive", ...detail });
   }, []);
 
   useWindowEvent("recording-track-limit-reached", (detail) => {

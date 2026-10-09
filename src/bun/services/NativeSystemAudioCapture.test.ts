@@ -336,3 +336,233 @@ describe("NativeSystemAudioCapture#stop", () => {
     );
   }, 8000);
 });
+
+describe("NativeSystemAudioCapture receipt lifecycle", () => {
+  it("開いた stdout の無受信は助言だけを通知し、再開したゼロ PCM をそのまま保存する", async () => {
+    writeStub([
+      "#!/usr/bin/env bash",
+      "trap 'exit 0' TERM",
+      'echo \'{"status":"started"}\' >&2',
+      "while [ ! -f resume ]; do sleep 0.01; done",
+      "printf '\\x00\\x00\\x00\\x00'",
+      "while true; do sleep 0.05; done",
+    ].join("\n"));
+    const capture = new NativeSystemAudioCapture();
+    const chunks: Buffer[] = [];
+    const states = vi.fn();
+    const errors = vi.fn();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(100);
+    const interval = vi.spyOn(globalThis, "setInterval");
+    try {
+      await capture.start("quiet", 48000, (bytes) => chunks.push(bytes), undefined, errors, states);
+      const check = interval.mock.calls.at(-1)?.[0];
+      expect(interval.mock.calls.at(-1)?.[1]).toBe(1000);
+      expect(typeof check).toBe("function");
+      clock.mockReturnValue(10_100);
+      if (typeof check === "function") check();
+      if (typeof check === "function") check();
+      expect(states.mock.calls).toEqual([["gap"]]);
+      expect(errors).not.toHaveBeenCalled();
+      fs.writeFileSync("resume", "");
+      await vi.waitFor(() => expect(chunks).toHaveLength(1));
+      expect(Buffer.concat(chunks)).toEqual(Buffer.alloc(4));
+      expect(states.mock.calls).toEqual([["gap"], ["receiving"]]);
+      clock.mockReturnValue(20_099);
+      if (typeof check === "function") check();
+      expect(states).toHaveBeenCalledTimes(2);
+      await capture.stop();
+      clock.mockReturnValue(30_100);
+      if (typeof check === "function") check();
+      expect(states).toHaveBeenCalledTimes(2);
+    } finally {
+      await capture.stop();
+      clock.mockRestore();
+      interval.mockRestore();
+    }
+  });
+
+  it("予期しない stdout EOF はバッファを保存した後に一度エラー通知する", async () => {
+    writeStub('#!/usr/bin/env bash\necho \'{"status":"started"}\' >&2\nprintf \'\\x00\\x20\\x00\\x00\'\n');
+    const events: string[] = [];
+    const capture = new NativeSystemAudioCapture();
+    await capture.start("eof", 48000, (bytes) => events.push(bytes.toString("hex")), undefined, (reason) => events.push(reason));
+    await vi.waitFor(() => expect(events).toHaveLength(2));
+    expect(events[0]).toBe("00200000");
+    expect(events[1]).toContain("stdout");
+    await capture.stop();
+  });
+
+  it("開始前の EOF は所有状態を解放して次の開始を許可する", async () => {
+    writeStub("#!/usr/bin/env bash\nexit 1\n");
+    const capture = new NativeSystemAudioCapture();
+    await expect(capture.start("failed", 48000, () => {})).rejects.toThrow();
+    expect(capture.isActive()).toBe(false);
+    writeStub('#!/usr/bin/env bash\necho \'{"status":"started"}\' >&2\nsleep 0.1\n');
+    await capture.start("next", 48000, () => {});
+    await capture.stop();
+  });
+});
+
+describe("NativeSystemAudioCapture producer ownership", () => {
+  it("停止中の古い開始失敗は同じsessionIdの新しいキャプチャを解除しない", async () => {
+    writeStub("#!/usr/bin/env bash\nsleep 1\n");
+    const capture = new NativeSystemAudioCapture();
+    const oldStart = capture.start("same", 48000, () => {});
+    const rejected = expect(oldStart).rejects.toThrow(/stopped|exited/);
+    const oldStop = capture.stop();
+    writeStub('#!/usr/bin/env bash\necho \'{"status":"started"}\' >&2\nsleep 1\n');
+    await capture.start("same", 48000, () => {});
+    await rejected;
+    await oldStop;
+    expect(capture.isActive("same")).toBe(true);
+    await capture.stop();
+  });
+
+  it("停止後に再開した同じsessionIdへ古いタイマーやreaderの通知を送らない", async () => {
+    writeStub('#!/usr/bin/env bash\necho \'{"status":"started"}\' >&2\nsleep 0.2\necho \'{"error":"old failure"}\' >&2\nprintf \'\\x00\\x20\'\n');
+    const capture = new NativeSystemAudioCapture();
+    const oldChunks = vi.fn();
+    const oldErrors = vi.fn();
+    const oldStates = vi.fn();
+    const intervals = vi.spyOn(globalThis, "setInterval");
+    const cleared = vi.spyOn(globalThis, "clearInterval");
+    const clock = vi.spyOn(performance, "now").mockReturnValue(100);
+    try {
+      await capture.start("same", 48000, oldChunks, undefined, oldErrors, oldStates);
+      const oldCheck = intervals.mock.calls.at(-1)?.[0];
+      const oldTimer = intervals.mock.results.at(-1)?.value;
+      await capture.stop();
+      expect(cleared).toHaveBeenCalledWith(oldTimer);
+      writeStub('#!/usr/bin/env bash\necho \'{"status":"started"}\' >&2\nsleep 1\n');
+      await capture.start("same", 48000, () => {});
+      clock.mockReturnValue(10_100);
+      if (typeof oldCheck === "function") oldCheck();
+      expect(oldStates).not.toHaveBeenCalled();
+      expect(oldErrors).not.toHaveBeenCalled();
+      expect(oldChunks).not.toHaveBeenCalled();
+    } finally {
+      await capture.stop();
+      intervals.mockRestore();
+      cleared.mockRestore();
+      clock.mockRestore();
+    }
+  });
+
+  it("起動タイムアウトはプロセスと所有状態を解放する", async () => {
+    writeStub("#!/usr/bin/env bash\nsleep 1\n");
+    const capture = new NativeSystemAudioCapture();
+    const timers = vi.spyOn(globalThis, "setTimeout");
+    const cleared = vi.spyOn(globalThis, "clearTimeout");
+    try {
+      const starting = capture.start("timeout", 48000, () => {});
+      const rejected = expect(starting).rejects.toThrow(/Timeout/);
+      const expire = timers.mock.calls.find((call) => call[1] === 10_000)?.[0];
+      expect(typeof expire).toBe("function");
+      if (typeof expire === "function") expire();
+      await rejected;
+      expect(cleared).toHaveBeenCalled();
+      expect(capture.isActive()).toBe(false);
+    } finally {
+      await capture.stop();
+      timers.mockRestore();
+      cleared.mockRestore();
+    }
+  });
+});
+
+describe("NativeSystemAudioCapture stdout failures", () => {
+  it("stdout読み取り失敗は保存済みPCMの後に通知し、通知失敗をログに残す", async () => {
+    writeStub("#!/usr/bin/env bash\n");
+    let reads = 0;
+    const stdout = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (reads++ === 0) controller.enqueue(new Uint8Array([0, 32]));
+        else controller.error(new Error("stdout read failed"));
+      },
+    });
+    const stderr = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"status":"started"}\n'));
+      },
+    });
+    // Subprocess boundary double: the OS cannot deterministically inject a pipe read failure.
+    const spawned = vi.spyOn(Bun, "spawn").mockReturnValueOnce({
+      stdout, stderr, kill: vi.fn(), exited: Promise.resolve(0), exitCode: 0,
+    } as unknown as ReturnType<typeof Bun.spawn>);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const events: string[] = [];
+    const cleared = vi.spyOn(globalThis, "clearInterval");
+    const capture = new NativeSystemAudioCapture();
+    try {
+      await capture.start("broken-pipe", 48000, (bytes) => events.push(bytes.toString("hex")), undefined, (reason) => {
+        events.push(reason);
+        throw new Error("notification failed");
+      });
+      await vi.waitFor(() => expect(log).toHaveBeenCalled());
+      expect(events).toEqual(["0020", "stdout read failed"]);
+      expect(cleared).toHaveBeenCalled();
+    } finally {
+      await capture.stop();
+      spawned.mockRestore();
+      log.mockRestore();
+      cleared.mockRestore();
+    }
+  });
+
+  it("ネイティブエラーの後もstdoutの保留PCMを保存しEOF通知を重複しない", async () => {
+    writeStub('#!/usr/bin/env bash\nprintf \'{"status":"started"}\\n{"error":"native failed"}\\n\' >&2\nprintf \'\\x00\\x00\\x00\\x20\'\n');
+    const capture = new NativeSystemAudioCapture();
+    const chunks: Buffer[] = [];
+    const errors = vi.fn();
+    await capture.start("native-error", 48000, (bytes) => chunks.push(bytes), undefined, errors);
+    await vi.waitFor(() => expect(chunks).toHaveLength(1));
+    expect(Buffer.concat(chunks)).toEqual(Buffer.from([0, 0, 0, 32]));
+    expect(errors.mock.calls).toEqual([["native failed"]]);
+    await capture.stop();
+  });
+});
+
+describe("NativeSystemAudioCapture terminal notification", () => {
+  it("ネイティブエラー通知が失敗した場合はEOFで終了を再度通知する", async () => {
+    writeStub('#!/usr/bin/env bash\nprintf \'{"status":"started"}\\n{"error":"native failed"}\\n\' >&2\n');
+    const errors: string[] = [];
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const capture = new NativeSystemAudioCapture();
+    try {
+      await capture.start("failed-notification", 48000, () => {}, undefined, (reason) => {
+        errors.push(reason);
+        if (reason === "native failed") throw new Error("notification failed");
+      });
+      await vi.waitFor(() => expect(errors).toHaveLength(2));
+      expect(errors[0]).toBe("native failed");
+      expect(errors[1]).toContain("stdout");
+      expect(log).toHaveBeenCalledOnce();
+    } finally {
+      await capture.stop();
+      log.mockRestore();
+    }
+  });
+
+  it("通常停止ではstdoutの終了をエラー扱いせず起動と停止のタイマーを解除する", async () => {
+    writeStub('#!/usr/bin/env bash\necho \'{"status":"started"}\' >&2\nsleep 1\n');
+    const capture = new NativeSystemAudioCapture();
+    const errors = vi.fn();
+    const timers = vi.spyOn(globalThis, "setTimeout");
+    const cleared = vi.spyOn(globalThis, "clearTimeout");
+    try {
+      await capture.start("normal-stop", 48000, () => {}, undefined, errors);
+      const startupIndex = timers.mock.calls.findIndex((call) => call[1] === 10_000);
+      expect(startupIndex).toBeGreaterThanOrEqual(0);
+      expect(cleared).toHaveBeenCalledWith(timers.mock.results[startupIndex]?.value);
+      await capture.stop();
+      const stopIndex = timers.mock.calls.findIndex((call) => call[1] === 3000);
+      expect(stopIndex).toBeGreaterThanOrEqual(0);
+      expect(cleared).toHaveBeenCalledWith(timers.mock.results[stopIndex]?.value);
+      expect(errors).not.toHaveBeenCalled();
+    } finally {
+      await capture.stop();
+      timers.mockRestore();
+      cleared.mockRestore();
+    }
+  });
+});

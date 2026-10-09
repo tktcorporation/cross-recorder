@@ -25,6 +25,7 @@ type RecordingStore = {
   recordingLimitTracks: TrackKind[];
   nativeSystemAudioAvailable: boolean;
   nativeSystemLevel: number;
+  nativeSystemReceiveState: "gap" | "receiving" | null;
   platform: string;
 
   // Actions
@@ -46,6 +47,7 @@ type RecordingStore = {
   clearRecordingLimits: () => void;
   setNativeSystemAudioAvailable: (available: boolean) => void;
   setNativeSystemLevel: (level: number) => void;
+  setNativeSystemReceiveState: (status: "gap" | "receiving" | null) => void;
   setPlatform: (platform: string) => void;
   reset: () => void;
 };
@@ -67,6 +69,7 @@ const initialState = {
   recordingLimitTracks: [] as TrackKind[],
   nativeSystemAudioAvailable: false,
   nativeSystemLevel: 0,
+  nativeSystemReceiveState: null as "gap" | "receiving" | null,
   platform: "",
 };
 
@@ -114,6 +117,7 @@ export const useRecordingStore = create<RecordingStore>((set) => ({
   setNativeSystemAudioAvailable: (available) =>
     set({ nativeSystemAudioAvailable: available }),
   setNativeSystemLevel: (level) => set({ nativeSystemLevel: level }),
+  setNativeSystemReceiveState: (status) => set({ nativeSystemReceiveState: status }),
   setPlatform: (platform) => set({ platform }),
   reset: () => set(initialState),
 }));

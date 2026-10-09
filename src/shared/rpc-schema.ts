@@ -144,10 +144,16 @@ export type CrossRecorderRPC = {
         progress?: number;
       };
       nativeSystemAudioLevel: {
+        sessionId: string;
         level: number;
       };
       nativeSystemAudioError: {
+        sessionId: string;
         reason: string;
+      };
+      nativeSystemAudioReceiveState: {
+        sessionId: string;
+        status: "gap" | "receiving";
       };
       recordingTrackLimitReached: RecordingTrackLimit;
       /** 文字起こしの進捗・完了をフロントエンドに通知する */

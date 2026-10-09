@@ -27,6 +27,7 @@ export function RecordingView() {
   const micEnabled = useRecordingStore((s) => s.micEnabled);
   const systemAudioEnabled = useRecordingStore((s) => s.systemAudioEnabled);
   const recordingError = useRecordingStore((s) => s.recordingError);
+  const nativeSystemReceiveState = useRecordingStore((s) => s.nativeSystemReceiveState);
   const recordingLimitTracks = useRecordingStore((s) => s.recordingLimitTracks);
   const micAnalyser = useRecordingStore((s) => s.micAnalyser);
   const systemAnalyser = useRecordingStore((s) => s.systemAnalyser);
@@ -207,6 +208,14 @@ export function RecordingView() {
             {sessionState.type === "degraded" && ` ${sessionState.activeTracks.map((track) => track === "mic" ? "Microphone" : "System audio").join(" + ")} keeps recording.`}
           </p>
         )}
+
+        {nativeSystemReceiveState === "gap" &&
+          (sessionState.type === "recording" || sessionState.type === "degraded") &&
+          sessionState.activeTracks.includes("system") && (
+            <p className="max-w-sm rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-center text-xs text-amber-300" role="status">
+              No system audio data is arriving. This can happen during silence. Recording continues; check your audio source if sound is playing.
+            </p>
+          )}
 
         {sessionState.type === "acquiring" && (
           <p className="text-xs text-muted-foreground">

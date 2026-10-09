@@ -9,6 +9,13 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import {
+  beginPcmReceipt,
+  checkPcmReceipt,
+  receivePcm,
+  PCM_RECEIPT_POLICY,
+  type PcmReceipt,
+} from "./PcmReceipt.js";
 
 type WriteChunkFn = (buffer: Buffer) => void;
 type LevelCallback = (level: number) => void;
@@ -58,6 +65,12 @@ interface ActiveCapture {
   sessionId: string;
   onLevel?: LevelCallback;
   onError?: ErrorCallback;
+  onReceiveState?: (status: "gap" | "receiving") => void;
+  receipt: PcmReceipt;
+  receiptTimer?: ReturnType<typeof setInterval>;
+  startupTimer?: ReturnType<typeof setTimeout>;
+  cancelStartup?: () => void;
+  errorReported: boolean;
 }
 
 export class NativeSystemAudioCapture {
@@ -180,6 +193,7 @@ export class NativeSystemAudioCapture {
    * @param writeChunk Called with raw PCM Int16LE buffers to write to the WAV file
    * @param onLevel    Called periodically with the RMS audio level (0..1)
    * @param onError    Called if the subprocess reports an error or crashes
+   * @param onReceiveState Advisory receipt gaps and recovery; silence may cause gaps
    */
   async start(
     sessionId: string,
@@ -187,6 +201,7 @@ export class NativeSystemAudioCapture {
     writeChunk: WriteChunkFn,
     onLevel?: LevelCallback,
     onError?: ErrorCallback,
+    onReceiveState?: (status: "gap" | "receiving") => void,
   ): Promise<void> {
     if (this.capture) {
       throw new Error("Native system audio capture is already active");
@@ -202,54 +217,64 @@ export class NativeSystemAudioCapture {
       { stdout: "pipe", stderr: "pipe" },
     );
 
-    this.capture = { process: proc, sessionId, onLevel, onError };
-
-    // Wait for the first status message from stderr to confirm startup
+    const capture: ActiveCapture = {
+      process: proc, sessionId, onLevel, onError, onReceiveState,
+      receipt: { status: "ended" }, errorReported: false,
+    };
+    this.capture = capture;
     const decoder = new TextDecoder();
     const stderrReader = (proc.stderr as ReadableStream<Uint8Array>).getReader();
-    let stderrBuffer = "";
-
-    const firstMsg = await this.readNextMessage(stderrReader, decoder, stderrBuffer);
-    stderrBuffer = firstMsg.remaining;
-
-    if (firstMsg.message.error) {
-      this.capture = null;
+    try {
+      const firstMsg = await this.readNextMessage(capture, stderrReader, decoder, "");
+      if (this.capture !== capture) throw new Error("Native capture startup was stopped");
+      if (firstMsg.message.error) throw new Error(String(firstMsg.message.error));
+      if (firstMsg.message.status !== "started") {
+        throw new Error(`Unexpected native capture status: ${JSON.stringify(firstMsg.message)}`);
+      }
+      capture.receipt = beginPcmReceipt(performance.now());
+      capture.receiptTimer = setInterval(() => {
+        if (this.capture !== capture) return;
+        this.updateReceipt(capture, checkPcmReceipt(capture.receipt, performance.now()));
+      }, PCM_RECEIPT_POLICY.checkEveryMs);
+      this.readStderrLoop(capture, stderrReader, decoder, firstMsg.remaining);
+      this.readStdoutLoop(capture, (proc.stdout as ReadableStream<Uint8Array>).getReader(), writeChunk, sampleRate);
+    } catch (err) {
+      if (this.capture === capture) this.capture = null;
+      this.endReceipt(capture);
       proc.kill();
-      throw new Error(String(firstMsg.message.error));
+      // Cancel only this producer's pending startup read; a replacement owns its own reader.
+      try {
+        await stderrReader.cancel();
+      } catch (cancelError) {
+        console.error("[NativeSystemAudioCapture] startup reader cancellation failed:", cancelError);
+      }
+      throw err;
     }
-
-    if (firstMsg.message.status !== "started") {
-      this.capture = null;
-      proc.kill();
-      throw new Error(
-        `Unexpected native capture status: ${JSON.stringify(firstMsg.message)}`,
-      );
-    }
-
-    // Start background readers for ongoing stderr (errors) and stdout (PCM data + level)
-    this.readStderrLoop(stderrReader, decoder, stderrBuffer);
-    this.readStdoutLoop(
-      (proc.stdout as ReadableStream<Uint8Array>).getReader(),
-      writeChunk,
-      sampleRate,
-    );
   }
 
   /** Stop any active capture, waiting for the subprocess to exit. */
   async stop(): Promise<void> {
     if (!this.capture) return;
 
-    const proc = this.capture.process;
+    const capture = this.capture;
+    const proc = capture.process;
     this.capture = null;
+    this.endReceipt(capture);
+    capture.cancelStartup?.();
 
     proc.kill("SIGTERM");
 
     // Wait for exit with a timeout
     const exitPromise = proc.exited;
-    const timeoutPromise = new Promise<void>((resolve) =>
-      setTimeout(resolve, 3000),
-    );
-    await Promise.race([exitPromise, timeoutPromise]);
+    let stopTimer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<void>((resolve) => {
+      stopTimer = setTimeout(resolve, 3000);
+    });
+    try {
+      await Promise.race([exitPromise, timeoutPromise]);
+    } finally {
+      clearTimeout(stopTimer);
+    }
 
     if (proc.exitCode === null) {
       proc.kill("SIGKILL");
@@ -268,27 +293,26 @@ export class NativeSystemAudioCapture {
   // ---------------------------------------------------------------------------
 
   private async readNextMessage(
+    capture: ActiveCapture,
     reader: ReadableStreamDefaultReader<Uint8Array>,
     decoder: TextDecoder,
     buffer: string,
   ): Promise<{ message: Record<string, unknown>; remaining: string }> {
     let buf = buffer;
 
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(
-        () =>
-          reject(
-            new Error("Timeout waiting for native capture process to start"),
-          ),
-        10_000,
-      ),
-    );
+    const timeout = new Promise<never>((_, reject) => {
+      capture.cancelStartup = () => reject(new Error("Native capture startup was stopped"));
+      capture.startupTimer = setTimeout(() => {
+        reject(new Error("Timeout waiting for native capture process to start"));
+      }, 10_000);
+    });
 
     const read = async (): Promise<{
       message: Record<string, unknown>;
       remaining: string;
     }> => {
       for (;;) {
+        if (this.capture !== capture) throw new Error("Native capture startup was stopped");
         const newlineIdx = buf.indexOf("\n");
         if (newlineIdx >= 0) {
           const line = buf.slice(0, newlineIdx).trim();
@@ -311,7 +335,13 @@ export class NativeSystemAudioCapture {
       }
     };
 
-    return Promise.race([read(), timeout]);
+    try {
+      return await Promise.race([read(), timeout]);
+    } finally {
+      clearTimeout(capture.startupTimer);
+      capture.startupTimer = undefined;
+      capture.cancelStartup = undefined;
+    }
   }
 
   /**
@@ -320,12 +350,12 @@ export class NativeSystemAudioCapture {
    * ネイティブバイナリ/スクリプト側での level 実装は不要。
    */
   private readStderrLoop(
+    capture: ActiveCapture,
     reader: ReadableStreamDefaultReader<Uint8Array>,
     decoder: TextDecoder,
     initialBuffer: string,
   ): void {
     let buffer = initialBuffer;
-    const capture = this.capture;
 
     // readNextMessage() が最初のメッセージを切り出した残りを initialBuffer
     // として渡してくる。1 回の reader.read() で複数行がまとめて届くと、
@@ -354,7 +384,11 @@ export class NativeSystemAudioCapture {
         const msg = parsed as Record<string, unknown>;
         if (typeof msg.error === "string") {
           try {
-            if (this.capture === capture) capture?.onError?.(msg.error as string);
+            if (this.capture === capture) {
+              this.endReceipt(capture);
+              capture.onError?.(msg.error);
+              capture.errorReported = true;
+            }
           } catch (err) {
             // onError（RPC 送信等）の失敗をここで飲み込まずループの外
             // まで伝播させると、以後このセッションでネイティブ側の
@@ -377,7 +411,7 @@ export class NativeSystemAudioCapture {
         processBufferedLines();
         for (;;) {
           const { value, done } = await reader.read();
-          if (done) break;
+          if (done || this.capture !== capture) break;
 
           buffer += decoder.decode(value, { stream: true });
           processBufferedLines();
@@ -397,13 +431,13 @@ export class NativeSystemAudioCapture {
    * レベル報告が得られる。
    */
   private readStdoutLoop(
+    capture: ActiveCapture,
     reader: ReadableStreamDefaultReader<Uint8Array>,
     writeChunk: WriteChunkFn,
     sampleRate: number,
   ): void {
     // A stopped reader may still wake after a later capture has started.
     // Bind callbacks to the producer that owns this reader.
-    const capture = this.capture;
     // ~100ms ごとにレベルを報告するためのサンプル数閾値
     // (サンプルレート / 10) で約100msぶんのサンプル
     const levelReportInterval = Math.floor(sampleRate / 10);
@@ -414,8 +448,13 @@ export class NativeSystemAudioCapture {
       try {
         for (;;) {
           const { value, done } = await reader.read();
-          if (done) break;
-          if (!capture || this.capture !== capture) break;
+          if (this.capture !== capture) break;
+          if (done) {
+            this.reportStdoutFailure(capture, "Native capture stdout ended unexpectedly");
+            break;
+          }
+          this.updateReceipt(capture, receivePcm(capture.receipt, value.byteLength, performance.now()));
+          if (this.capture !== capture) break;
 
           writeChunk(Buffer.from(value));
           if (this.capture !== capture) break;
@@ -445,9 +484,41 @@ export class NativeSystemAudioCapture {
         // ストリーム読み取りの想定外の失敗なので、握りつぶさず呼び出し元へ
         // 伝える。
         if (this.capture === capture) {
-          capture?.onError?.(err instanceof Error ? err.message : String(err));
+          this.reportStdoutFailure(capture, err instanceof Error ? err.message : String(err));
         }
       }
     })();
   }
+  private endReceipt(capture: ActiveCapture): void {
+    capture.receipt = { status: "ended" };
+    clearInterval(capture.receiptTimer);
+    capture.receiptTimer = undefined;
+  }
+
+  private updateReceipt(capture: ActiveCapture, next: PcmReceipt): void {
+    const previous = capture.receipt.status;
+    capture.receipt = next;
+    if ((next.status === "gap" && previous !== "gap") ||
+        (next.status === "receiving" && previous === "gap")) {
+      try {
+        capture.onReceiveState?.(next.status);
+      } catch (err) {
+        // Advisory notification failure must not terminate the PCM reader.
+        console.error("[NativeSystemAudioCapture] onReceiveState callback failed:", err);
+      }
+    }
+  }
+
+  private reportStdoutFailure(capture: ActiveCapture, reason: string): void {
+    this.endReceipt(capture);
+    if (capture.errorReported) return;
+    capture.errorReported = true;
+    try {
+      capture.onError?.(reason);
+    } catch (err) {
+      // The background reader has no caller to return notification failures to.
+      console.error("[NativeSystemAudioCapture] onError callback failed:", err);
+    }
+  }
+
 }

@@ -3,7 +3,7 @@ import type { RecordingTrackLimit } from "@shared/types.js";
 
 const fixtures = vi.hoisted(() => ({
   effects: [] as Array<() => void | (() => void)>,
-  handlers: new Map<string, (notification: RecordingTrackLimit) => void>(),
+  handlers: new Map<string, (notification: RecordingTrackLimit | { sessionId: string; status: "gap" | "receiving" } | { sessionId: string; reason: string } | { sessionId: string; level: number }) => void>(),
   sessionId: "s1",
   manager: {
     start: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock("./useRpc.js", () => ({
   useRpc: () => ({ request: { getPlatform: vi.fn().mockResolvedValue({ platform: "linux", nativeSystemAudioAvailable: true }) } }),
 }));
 vi.mock("./useWindowEvent.js", () => ({
-  useWindowEvent: (name: string, handler: (notification: RecordingTrackLimit) => void) => {
+  useWindowEvent: (name: string, handler: (notification: RecordingTrackLimit | { sessionId: string; status: "gap" | "receiving" } | { sessionId: string; reason: string } | { sessionId: string; level: number }) => void) => {
     fixtures.handlers.set(name, handler);
   },
 }));
@@ -144,8 +144,9 @@ describe("useRecording track limit lifecycle", () => {
     expect(useRecordingStore.getState().systemAnalyser).toBe(systemAnalyser);
     useRecordingStore.getState().setNativeSystemLevel(0.7);
     notify("s1", "system");
-    const receiveLevel = fixtures.handlers.get("native-system-audio-level") as unknown as (detail: { level: number }) => void;
-    receiveLevel({ level: 0.9 });
+    const receiveLevel = fixtures.handlers.get("native-system-audio-level");
+    if (!receiveLevel) throw new Error("Level handler missing");
+    receiveLevel({ sessionId: "s1", level: 0.9 });
     expect(useRecordingStore.getState().nativeSystemLevel).toBe(0);
     expect(useRecordingStore.getState().systemAnalyser).toBeNull();
   });
@@ -188,4 +189,118 @@ describe("useRecording track limit lifecycle", () => {
     expect(useRecordingStore.getState().recordingLimitTracks).toEqual([]);
     expect(useRecordingStore.getState().sessionState.type).toBe("recording");
   });
+  function native(name: "native-system-audio-error" | "native-system-audio-receive-state", detail: { sessionId: string; reason: string } | { sessionId: string; status: "gap" | "receiving" }) {
+    const handler = fixtures.handlers.get(name);
+    if (!handler) throw new Error("Native event handler was not registered");
+    handler(detail);
+  }
+
+  it("データ未受信は録音を継続し、ゼロ音声を含む受信再開で案内を消す", async () => {
+    useRecordingStore.getState().setSystemAudioEnabled(true);
+    const actions = mount();
+    actions.startRecording();
+    await vi.waitFor(() => expect(useRecordingStore.getState().sessionState.type).toBe("recording"));
+    useRecordingStore.getState().setNativeSystemLevel(0.8);
+    native("native-system-audio-receive-state", { sessionId: "s1", status: "gap" });
+    expect(useRecordingStore.getState()).toMatchObject({ nativeSystemReceiveState: "gap", nativeSystemLevel: 0, sessionState: { type: "recording", activeTracks: ["mic", "system"] } });
+    expect(fixtures.manager.stopTrack).not.toHaveBeenCalled();
+    expect(fixtures.manager.stop).not.toHaveBeenCalled();
+    native("native-system-audio-receive-state", { sessionId: "s1", status: "receiving" });
+    expect(useRecordingStore.getState().nativeSystemReceiveState).toBe("receiving");
+  });
+
+  it("確定した native 障害だけを停止し、重複と非アクティブの通知を無視する", async () => {
+    useRecordingStore.getState().setSystemAudioEnabled(true);
+    const actions = mount();
+    actions.startRecording();
+    await vi.waitFor(() => expect(useRecordingStore.getState().sessionState.type).toBe("recording"));
+    native("native-system-audio-receive-state", { sessionId: "s1", status: "gap" });
+    native("native-system-audio-error", { sessionId: "s1", reason: "native EOF" });
+    native("native-system-audio-error", { sessionId: "s1", reason: "duplicate EOF" });
+    native("native-system-audio-receive-state", { sessionId: "s1", status: "gap" });
+    expect(useRecordingStore.getState()).toMatchObject({ nativeSystemReceiveState: null, nativeSystemLevel: 0, sessionState: { type: "degraded", activeTracks: ["mic"], lostTracks: ["system"] } });
+    expect(fixtures.manager.stopTrack).toHaveBeenCalledExactlyOnceWith("system");
+    expect(fixtures.manager.stop).not.toHaveBeenCalled();
+  });
+
+  it("最後の native トラック障害でも保存し、停止中と次のセッションの古い通知を無視する", async () => {
+    useRecordingStore.getState().setMicEnabled(false);
+    useRecordingStore.getState().setSystemAudioEnabled(true);
+    let finalized!: (metadata: { id: string; tracks: never[] }) => void;
+    fixtures.manager.stop.mockImplementationOnce(() => new Promise((resolve) => { finalized = resolve; }));
+    const actions = mount();
+    actions.startRecording();
+    await vi.waitFor(() => expect(useRecordingStore.getState().sessionState.type).toBe("recording"));
+    native("native-system-audio-error", { sessionId: "s1", reason: "EOF" });
+    native("native-system-audio-receive-state", { sessionId: "s1", status: "gap" });
+    expect(useRecordingStore.getState().sessionState.type).toBe("stopping");
+    expect(useRecordingStore.getState().nativeSystemReceiveState).toBeNull();
+    finalized({ id: "saved-s1", tracks: [] });
+    await vi.waitFor(() => expect(useRecordingStore.getState().sessionState.type).toBe("idle"));
+    expect(useRecordingStore.getState().recordings.map((recording) => recording.id)).toEqual(["saved-s1"]);
+    fixtures.sessionId = "s2";
+    fixtures.manager.start.mockResolvedValueOnce("s2");
+    actions.startRecording();
+    await vi.waitFor(() => expect(useRecordingStore.getState().sessionState).toMatchObject({ type: "recording", sessionId: "s2" }));
+    native("native-system-audio-error", { sessionId: "s1", reason: "queued EOF" });
+    native("native-system-audio-receive-state", { sessionId: "s1", status: "gap" });
+    expect(useRecordingStore.getState().sessionState.type).toBe("recording");
+    expect(useRecordingStore.getState().nativeSystemReceiveState).toBeNull();
+  });
+
+  it.each([false, true])("取得中の自セッション通知を取得後に適用し、キャンセル時には破棄する (%s)", async (cancelled) => {
+    useRecordingStore.getState().setSystemAudioEnabled(true);
+    let acquired!: (sessionId: string) => void;
+    fixtures.manager.start.mockImplementationOnce(() => new Promise<string>((resolve) => { acquired = resolve; }));
+    const actions = mount();
+    actions.startRecording();
+    await vi.waitFor(() => expect(fixtures.manager.start).toHaveBeenCalledOnce());
+    native("native-system-audio-error", { sessionId: "old", reason: "stale" });
+    native("native-system-audio-receive-state", { sessionId: "s1", status: "gap" });
+    native("native-system-audio-error", { sessionId: "s1", reason: "EOF" });
+    expect(useRecordingStore.getState().nativeSystemReceiveState).toBeNull();
+    if (cancelled) unmount();
+    acquired("s1");
+    await vi.waitFor(() => expect(useRecordingStore.getState().sessionState.type).toBe(cancelled ? "acquiring" : "degraded"));
+    expect(fixtures.manager.stopTrack).toHaveBeenCalledTimes(cancelled ? 0 : 1);
+    expect(useRecordingStore.getState().nativeSystemReceiveState).toBeNull();
+  });
+
+  it("古いレベルと gap 中の遅延レベルを無視し、受信再開後だけ表示する", async () => {
+    useRecordingStore.getState().setSystemAudioEnabled(true);
+    const actions = mount();
+    actions.startRecording();
+    await vi.waitFor(() => expect(useRecordingStore.getState().sessionState.type).toBe("recording"));
+    const level = fixtures.handlers.get("native-system-audio-level");
+    if (!level) throw new Error("Level handler missing");
+    level({ sessionId: "old", level: 0.7 });
+    expect(useRecordingStore.getState().nativeSystemLevel).toBe(0);
+    native("native-system-audio-receive-state", { sessionId: "s1", status: "gap" });
+    level({ sessionId: "s1", level: 0.7 });
+    expect(useRecordingStore.getState().nativeSystemLevel).toBe(0);
+    native("native-system-audio-receive-state", { sessionId: "s1", status: "receiving" });
+    level({ sessionId: "s1", level: 0.7 });
+    expect(useRecordingStore.getState().nativeSystemLevel).toBe(0.7);
+    notify("s1", "system");
+    native("native-system-audio-receive-state", { sessionId: "s1", status: "gap" });
+    native("native-system-audio-error", { sessionId: "s1", reason: "late EOF" });
+    expect(useRecordingStore.getState()).toMatchObject({ nativeSystemReceiveState: null, nativeSystemLevel: 0, sessionState: { type: "degraded", activeTracks: ["mic"] } });
+    expect(fixtures.manager.stopTrack).toHaveBeenCalledExactlyOnceWith("system");
+  });
+
+  it("取得中の gap を取得後に表示して、停止開始で直ちに消す", async () => {
+    useRecordingStore.getState().setSystemAudioEnabled(true);
+    let acquired!: (sessionId: string) => void;
+    fixtures.manager.start.mockImplementationOnce(() => new Promise<string>((resolve) => { acquired = resolve; }));
+    const actions = mount();
+    actions.startRecording();
+    await vi.waitFor(() => expect(fixtures.manager.start).toHaveBeenCalledOnce());
+    native("native-system-audio-receive-state", { sessionId: "s1", status: "gap" });
+    expect(useRecordingStore.getState().nativeSystemReceiveState).toBeNull();
+    acquired("s1");
+    await vi.waitFor(() => expect(useRecordingStore.getState().nativeSystemReceiveState).toBe("gap"));
+    actions.stopRecording();
+    expect(useRecordingStore.getState().nativeSystemReceiveState).toBeNull();
+  });
+
 });

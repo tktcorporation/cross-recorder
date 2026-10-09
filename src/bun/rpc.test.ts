@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
     recordingTrackLimitReached: vi.fn(),
     nativeSystemAudioLevel: vi.fn(),
     nativeSystemAudioError: vi.fn(),
+    nativeSystemAudioReceiveState: vi.fn(),
   },
   startSession: vi.fn(),
   writeChunk: vi.fn(),
@@ -97,4 +98,24 @@ describe("RPC WAV track limit notifications", () => {
     expect(error).toHaveBeenCalledOnce();
     error.mockRestore();
   });
+  it("native 状態と障害の送信に開始セッションの識別子を維持する", async () => {
+    await requests.startRecordingSession({
+      sessionId: "native-session",
+      config: { sampleRate: 48000, channels: 2, bitDepth: 16, micEnabled: false, systemAudioEnabled: true, micDeviceId: null },
+      tracks: [{ trackKind: "system", channels: 2 }], nativeSystemAudio: true,
+    });
+    const call = mocks.startCapture.mock.calls[0];
+    if (!call) throw new Error("Native capture was not started");
+    const failure = call[4] as (reason: string) => void;
+    const receipt = call[5] as (status: "gap" | "receiving") => void;
+    failure("EOF");
+    expect(mocks.send.nativeSystemAudioError).toHaveBeenCalledExactlyOnceWith({ sessionId: "native-session", reason: "EOF" });
+    receipt("gap");
+    receipt("receiving");
+    expect(mocks.send.nativeSystemAudioReceiveState.mock.calls).toEqual([
+      [{ sessionId: "native-session", status: "gap" }],
+      [{ sessionId: "native-session", status: "receiving" }],
+    ]);
+  });
+
 });

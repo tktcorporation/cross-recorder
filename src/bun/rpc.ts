@@ -90,8 +90,9 @@ export const rpc = BrowserView.defineRPC<CrossRecorderRPC>({
                       });
                     }
                   },
-                  (level) => rpc.send.nativeSystemAudioLevel({ level }),
-                  (reason) => rpc.send.nativeSystemAudioError({ reason }),
+                  (level) => rpc.send.nativeSystemAudioLevel({ sessionId: params.sessionId, level }),
+                  (reason) => rpc.send.nativeSystemAudioError({ sessionId: params.sessionId, reason }),
+                  (status) => rpc.send.nativeSystemAudioReceiveState({ sessionId: params.sessionId, status }),
                 ),
               catch: (err) => err as Error,
             }).pipe(

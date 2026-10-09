@@ -30,6 +30,11 @@ const rpc = Electroview.defineRPC<CrossRecorderRPC>({
           new CustomEvent("native-system-audio-error", { detail: data }),
         );
       },
+      nativeSystemAudioReceiveState: (data) => {
+        window.dispatchEvent(
+          new CustomEvent("native-system-audio-receive-state", { detail: data }),
+        );
+      },
       recordingTrackLimitReached: (data) => {
         window.dispatchEvent(
           new CustomEvent("recording-track-limit-reached", { detail: data }),

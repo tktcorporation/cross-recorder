@@ -8,8 +8,9 @@ type WindowEventDetailMap = {
     elapsedMs: number;
     fileSizeBytes: number;
   };
-  "native-system-audio-level": { level: number };
-  "native-system-audio-error": { reason: string };
+  "native-system-audio-level": { sessionId: string; level: number };
+  "native-system-audio-error": { sessionId: string; reason: string };
+  "native-system-audio-receive-state": { sessionId: string; status: "gap" | "receiving" };
   "recording-track-limit-reached": RecordingTrackLimit;
   "device-list-changed": { devices: unknown[] };
   "update-status": {

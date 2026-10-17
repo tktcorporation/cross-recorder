@@ -1,10 +1,10 @@
 name: Labeler
-on: [pull_request]
 
-# 同じ PR への連続 push で古い実行をキャンセルする。
-concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
+# 実行ごとに最低 1 分が課金されるため、PR への push（synchronize）では起動しない。
+# PR の途中で追加されたファイルにはラベルが付かないが、ラベルは表示用で判定には使わない。
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
 
 jobs:
   label:

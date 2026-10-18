@@ -40,6 +40,9 @@ legacy_version_file = true
 auto_install = true
 # pipx バックエンドで uvx を使う
 pipx.uvx = true
+# 公開から 6 時間未満のリリースは `latest` の解決対象から外す。公開直後に
+# 差し替えられた・取り下げられたリリースを踏むのを避けつつ、更新の反映を遅らせすぎない。
+minimum_release_age = "6h"
 
 [tasks.ziku]
 run = "npx ziku@latest"

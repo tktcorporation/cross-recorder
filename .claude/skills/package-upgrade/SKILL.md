@@ -75,7 +75,27 @@ pnpm --filter <ws> update <pkg>          # 特定 workspace に絞って更新
 pnpm add <pkg>@<version> --filter <ws>   # 特定版を狙う
 ```
 
-cooldown が効くリポジトリなら、解決された version は最低でも cooldown 期間ぶん枯れている（具体値は `pnpm-workspace.yaml` の `minimumReleaseAge`）。**cooldown を跨いで最新版を掴むために `minimumReleaseAgeExclude` を安易に足さない** — 足すのは「上流が critical CVE の hotfix を出した直後」のような明確な理由があるときだけ。足したら PR 説明に理由を書き、取り込み後に掃除する。
+cooldown が効くリポジトリなら、解決された version は最低でも cooldown 期間ぶん枯れている（具体値は `pnpm-workspace.yaml` の `minimumReleaseAge`）。`minimumReleaseAgeExclude` で cooldown を跨ぐのは、次の「脆弱性の修正版が cooldown 期間内にしか無いとき」の判断で許されたときだけにする。
+
+#### 脆弱性の修正版が cooldown 期間内にしか無いとき
+
+先に、cooldown を満たした修正版が無いかを確かめる。advisory（GHSA / OSV）が挙げる修正版は、最新版より前の版であることが多い。最新版だけを見て例外へ進まない。
+
+| 状況                                                                                                                            | 対応                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| cooldown を満たした修正版がある                                                                                                 | その版を使う。例外は使わない                                |
+| 修正版が cooldown 期間内にしか無く、影響が開発・テスト環境に閉じる                                                              | cooldown が明けるまで待ち、それまでは受容として記録する     |
+| 本番の実行経路から到達しうる脆弱性で、深刻度が Critical / High か、実際に悪用されている（KEV 掲載・攻撃の報告・公開された PoC） | 公開から 6 時間たった修正版を、下の確認を通してから取り込む |
+
+6 時間は、侵害された版が検知されて registry から取り下げられるまでにかかる時間（多くは数時間）を超える長さとして置いている。待機をゼロにしないのは、攻撃者が「緊急のセキュリティ修正」を装って侵害版を出すと、例外の経路がそのまま侵入口になるため。
+
+cooldown を跨ぐ前に、次をすべて確かめる。
+
+- advisory が、その版を修正版として挙げている。リリースノートの記載だけでは足りない
+- 公開者と provenance（npm の trusted publishing など）が直前の版と同じ
+- 直前の版との差分が修正に見合う大きさで、新しい依存や install script が増えていない
+
+`minimumReleaseAgeExclude` には `pkg@x.y.z` の形で版を名指しし、パッケージ全体を外さない。PR 説明に理由（advisory ID、本番から到達する経路、上の確認の結果）を書き、cooldown 期間を過ぎたらエントリを消す。`pnpm audit --fix` は深刻度を問わず各 advisory の最小修正版を `minimumReleaseAgeExclude` に足すので、そのまま使わない。足されたエントリを上の判断で絞る。
 
 ### 2-2. 差分を必ず人間の目で確認する
 

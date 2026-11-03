@@ -39,7 +39,6 @@
     ".config/docs-lifecycle.json",
     "scripts/docs-lifecycle",
     ".claude/hooks/record-pr-review.sh",
-    ".claude/hooks/require-pr-self-review.sh",
     ".claude/rules/ci-workflow.md",
     ".claude/rules/code-intent-documentation.md",
     ".claude/rules/codex-pairing.md",
@@ -53,7 +52,6 @@
     ".claude/rules/agent-work-discipline.md",
     ".claude/rules/pr-writing-style.md",
     ".claude/rules/template-sync-boundary.md",
-    ".claude/skills/functional-ddd/SKILL.md",
     ".codex/config.toml",
     ".codex/hooks.json",
     ".codex/run-shared-hook.sh",
@@ -64,7 +62,6 @@
     ".devcontainer/setup-*.ts",
     ".devcontainer/test-*.ts",
     ".claude/hooks/record-pr-review.ts",
-    ".claude/hooks/require-pr-self-review.ts",
     ".codex/run-shared-hook.ts",
     "scripts/docs-lifecycle.ts",
     "scripts/lib/docs-lifecycle",
@@ -77,6 +74,7 @@
     ".claude/guides/tools/cursor.md",
     ".claude/guides/tools/cloud-review.md",
     ".codex/cloud-pr-feedback.cjs",
-    ".codex/create-reviewed-pr.cjs"
+    ".codex/create-reviewed-pr.cjs",
+    ".claude/skills/design-improvement"
   ]
 }

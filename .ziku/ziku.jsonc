@@ -64,7 +64,6 @@
     ".devcontainer/setup-*.ts",
     ".devcontainer/test-*.ts",
     ".claude/hooks/record-pr-review.ts",
-    ".claude/hooks/require-pr-self-review.ts",
     ".codex/run-shared-hook.ts",
     "scripts/docs-lifecycle.ts",
     "scripts/lib/docs-lifecycle",

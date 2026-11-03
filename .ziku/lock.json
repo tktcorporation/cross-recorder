@@ -266,8 +266,7 @@
       "tools/agent-fleet/test/fixtures/codex/sessions/2026/09/04/rollout-2026-09-04T02-41-04-thread-child.jsonl": "fa9d66560bc3b8e68b7e35da767d2ba97dfc3fe0508e0df8f8bb8bf1043c79e9",
       "tools/agent-fleet/test/fixtures/codex-history-dir/sessions/2026/09/03/rollout-2026-09-03T10-00-00-thread-parent.jsonl": "74713bdecdb7ca8a3d3cbbee6d914d728c13c97a833d3fb632a5b6f383108a43",
       "tools/agent-fleet/test/fixtures/codex-dir-rollout/sessions/2026/09/05/rollout-2026-09-05T00-00-00-thread-dir.jsonl/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      ".ziku/ziku.jsonc": "751c50e8530d0318ce2db925a3eccd0d85e78fe3098f765e8a3b2b3908169fe3",
-      ".claude/skills/functional-ddd/SKILL.md": "29c4631d6b8fe3408e239c0edfb6eca3bc6e467606e3ddfee6a38834d21b489d"
+      ".ziku/ziku.jsonc": "751c50e8530d0318ce2db925a3eccd0d85e78fe3098f765e8a3b2b3908169fe3"
     },
     "ref": "c99e6bb46fafc102d1f463bb0278edc566f40985"
   }

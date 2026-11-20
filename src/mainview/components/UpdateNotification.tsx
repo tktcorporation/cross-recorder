@@ -30,7 +30,7 @@ export function UpdateNotification() {
     setCurrentVersion,
   } = useUpdateStore();
 
-  const upToDateTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const upToDateTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     rpc.request

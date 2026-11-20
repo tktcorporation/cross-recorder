@@ -1,8 +1,17 @@
-@import 'tailwindcss';
-
-@plugin 'tailwindcss-animate';
+/* 走査をこのディレクトリ（画面のコード）に限る。既定ではリポジトリ全体の .gitignore 外のファイルを
+   走査し、docs などに書かれたクラス名まで CSS に入る。 */
+@import 'tailwindcss' source(none);
+@source "./";
 
 @theme {
+  /* 画面で使う既定パレットの色は、Tailwind 3 と同じ値に固定する。Tailwind 4 の既定パレットは
+     oklch で定義され、同じ名前でも色相と彩度がわずかにずれる。 */
+  --color-green-400: #4ade80;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+  --color-yellow-400: #facc15;
+  --color-amber-300: #fcd34d;
+  --color-amber-500: #f59e0b;
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));

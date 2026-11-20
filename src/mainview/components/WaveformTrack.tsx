@@ -91,7 +91,7 @@ export function WaveformTrack({ label, bars, progress, height, onSeek }: Props) 
       <canvas
         ref={canvasRef}
         onClick={handleClick}
-        className="w-full cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="w-full cursor-pointer rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         style={{ height }}
         tabIndex={0}
         role="slider"

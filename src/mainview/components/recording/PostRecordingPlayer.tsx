@@ -96,7 +96,7 @@ export function PostRecordingPlayer({ recording, onDismiss }: Props) {
           {isPlaying ? (
             <PauseIcon className="h-4 w-4" />
           ) : (
-            <PlayIcon className="h-4 w-4 translate-x-[1px]" />
+            <PlayIcon className="h-4 w-4 translate-x-px" />
           )}
         </Button>
 

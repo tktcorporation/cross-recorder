@@ -29,7 +29,7 @@ export function RecordButton({ state, disabled, onClick }: RecordButtonProps) {
       whileTap={{ scale: disabled ? 1 : 0.94 }}
       className={cn(
         "relative z-10 flex h-[88px] w-[88px] items-center justify-center rounded-full transition-shadow duration-300",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background",
+        "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background",
         isStopping
           ? "bg-elevated ring-1 ring-border"
           : "bg-recording ring-1 ring-recording/40",

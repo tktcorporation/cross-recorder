@@ -156,7 +156,7 @@ export function RecordingView() {
         </div>
 
         {/* 波形 / PostRecordingPlayer */}
-        <div className="min-h-[1px] w-full max-w-md">
+        <div className="min-h-px w-full max-w-md">
           <AnimatePresence mode="wait">
             {isRecording ? (
               <motion.div

@@ -102,7 +102,7 @@ src/
 | Layer | Technology |
 |-------|-----------|
 | Desktop framework | [Electrobun](https://electrobun.dev) (Bun + CEF) |
-| UI | React 18 · Tailwind CSS 3 · shadcn/ui · Framer Motion |
+| UI | React 19 · Tailwind CSS 4 · shadcn/ui · Framer Motion |
 | State | Zustand 5 |
 | Audio | Web Audio API · AudioWorklet · ScreenCaptureKit (macOS) |
 | Error handling | [Effect.ts](https://effect.website) |

@@ -29,7 +29,7 @@ export function AudioSourceControls({ disabled }: AudioSourceControlsProps) {
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-xl border border-border bg-card/80 shadow-card backdrop-blur-sm transition-opacity",
+        "overflow-hidden rounded-xl border border-border bg-card/80 shadow-card backdrop-blur-xs transition-opacity",
         disabled && "opacity-60",
       )}
     >
@@ -70,7 +70,7 @@ export function AudioSourceControls({ disabled }: AudioSourceControlsProps) {
               value={selectedMicId ?? ""}
               onChange={(e) => setSelectedMicId(e.target.value || null)}
               disabled={disabled}
-              className="w-full appearance-none rounded-lg border border-border bg-background py-2 pl-3 pr-8 text-xs text-foreground transition-colors hover:border-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full appearance-none rounded-lg border border-border bg-background py-2 pl-3 pr-8 text-xs text-foreground transition-colors hover:border-elevated focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             >
               {devices.length === 0 && (
                 <option value="">No devices found</option>

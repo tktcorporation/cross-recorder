@@ -6,7 +6,7 @@
   "type": "module",
   "packageManager": "pnpm@10.30.3",
   "engines": {
-    "node": "^22.12.0 || >=24.0.0"
+    "node": "^22.13.0 || >=24.0.0"
   },
   "scripts": {
     "start": "vite build && electrobun dev",
@@ -40,26 +40,25 @@
     "electrobun": "^1.18.1",
     "framer-motion": "^12.43.0",
     "nanoid": "^5.1.16",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "tailwind-merge": "^3.7.0",
-    "zustand": "^5.0.15"
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.31.1",
+    "@tailwindcss/postcss": "^4.3.5",
     "@types/bun": "latest",
-    "@types/react": "^18.3.31",
-    "@types/react-dom": "^18.3.7",
-    "@vitejs/plugin-react": "^6.1.2",
-    "autoprefixer": "^10.6.1",
-    "concurrently": "^10.0.6",
-    "oxlint": "^1.88.0",
-    "postcss": "^8.5.30",
-    "tailwindcss": "^3.4.19",
-    "tailwindcss-animate": "^1.0.7",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "concurrently": "^10.0.7",
+    "oxlint": "^1.94.0",
+    "postcss": "^8.5.33",
+    "tailwindcss": "^4.3.5",
     "typescript": "^6.0.3",
-    "vite": "^8.3.4",
+    "vite": "^8.3.8",
     "vitest": "^4.1.12"
   }
 }

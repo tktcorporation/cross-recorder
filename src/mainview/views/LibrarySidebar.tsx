@@ -96,7 +96,7 @@ export function LibrarySidebar() {
             <p className="text-center text-sm font-medium text-foreground/80">
               No recordings yet
             </p>
-            <p className="max-w-[14rem] text-center text-xs leading-relaxed text-muted-foreground">
+            <p className="max-w-56 text-center text-xs leading-relaxed text-muted-foreground">
               Hit the record button to capture your first session — it&apos;ll
               show up here.
             </p>

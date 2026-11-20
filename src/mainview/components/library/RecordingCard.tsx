@@ -35,7 +35,7 @@ function MiniWaveform() {
   // 擬似的な高さパターン（0〜1）
   const pattern = [0.3, 0.5, 0.8, 1.0, 0.7, 0.9, 0.4, 0.6, 0.85, 0.5, 0.7, 0.95, 0.6, 0.4, 0.3];
   return (
-    <div className="flex items-center gap-[1px]" aria-hidden="true">
+    <div className="flex items-center gap-px" aria-hidden="true">
       {pattern.map((h, i) => (
         <div
           key={i}

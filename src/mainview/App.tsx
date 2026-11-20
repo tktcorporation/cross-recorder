@@ -42,7 +42,7 @@ export default function App() {
 /** アプリのブランドマーク（赤い録音ドットを内包した角丸タイル） */
 function BrandMark() {
   return (
-    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-elevated to-secondary shadow-card">
+    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-linear-to-br from-elevated to-secondary shadow-card">
       <span className="h-2.5 w-2.5 rounded-full bg-recording shadow-[0_0_8px_hsl(var(--recording))]" />
     </div>
   );

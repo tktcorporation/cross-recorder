@@ -47,7 +47,7 @@ Download the latest release for your platform:
 
 ### Requirements
 
-- macOS 13.0+ (Ventura) for ScreenCaptureKit system audio
+- macOS 13.3+ (Ventura). The UI is styled with Tailwind CSS 4, which needs the WebKit that ships with macOS 13.3 or later (Safari 16.4); system audio capture through ScreenCaptureKit itself works from 13.0
 - Windows 10+
 
 ## 🛠️ Development
@@ -102,7 +102,7 @@ src/
 | Layer | Technology |
 |-------|-----------|
 | Desktop framework | [Electrobun](https://electrobun.dev) (Bun + CEF) |
-| UI | React 18 · Tailwind CSS 3 · shadcn/ui · Framer Motion |
+| UI | React 19 · Tailwind CSS 4 · shadcn/ui · Framer Motion |
 | State | Zustand 5 |
 | Audio | Web Audio API · AudioWorklet · ScreenCaptureKit (macOS) |
 | Error handling | [Effect.ts](https://effect.website) |

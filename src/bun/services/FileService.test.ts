@@ -1,7 +1,6 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterAll, afterEach, vi } from "vitest";
 import { Effect } from "effect";
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { APP_DATA_DIR, RECORDINGS_DIR } from "../../shared/constants.js";
 import type { RecordingConfig } from "../../shared/types.js";
@@ -17,7 +16,21 @@ import {
   HEADER_CHECKPOINT_INTERVAL_MS,
 } from "./FileService.js";
 
-const recordingsDir = path.join(os.homedir(), APP_DATA_DIR, RECORDINGS_DIR);
+const testHome = await vi.hoisted(async () => {
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  return mkdtempSync(join(tmpdir(), "cross-recorder-fileservice-"));
+});
+
+vi.mock("node:os", async (importOriginal) => ({
+  ...await importOriginal<typeof import("node:os")>(),
+  homedir: () => testHome,
+}));
+
+const recordingsDir = path.join(testHome, APP_DATA_DIR, RECORDINGS_DIR);
+
+afterAll(() => fs.rmSync(testHome, { recursive: true, force: true }));
 
 const config: RecordingConfig = {
   sampleRate: 48000,
